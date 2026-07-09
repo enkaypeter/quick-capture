@@ -4,31 +4,39 @@
   <div class="row">
     <div class="col-12">
       <br />
-      <form class="row row-cols-3 align-items-center" action="#">
+      <form
+        class="row row-cols-3 align-items-center"
+        method="POST"
+        action="{{url_for('views.case_add') }}"
+        enctype="multipart/form-data"
+      >
         <div class="mb-3">
-          <label class="form-label" for="formCaseName">Case Name</label>
+          <label class="form-label" name="formCaseName">Case Name</label>
           <input
-            class="form-control"
             type="text"
-            placeholder="Please enter Case Name"
+            class="form-control"
             id="formCaseName"
+            name="formCaseName"
+            placeholder="Please enter Case Name"
           />
         </div>
         <div class="mb-3">
-          <label class="form-label" for="formCaseDetail">Case Details</label>
+          <label class="form-label" name="formCaseDetail">Case Details</label>
           <input
-            class="form-control"
             type="text"
-            placeholder="Please enter case details"
+            class="form-control"
             id="formCaseDetail"
+            name="formCaseDetail"
+            placeholder="Please enter case details"
           />
         </div>
         <div class="mb-3">
-          <label class="form-label" for="formFile">Attachments</label>
-          <input class="form-control" type="file" id="formAttachments" />
+          <label class="form-label">Attachments</label>
+          <input type="file" class="form-control" id="formAttachments" type="file"  />
         </div>
         <div>
           <button class="btn btn-primary" type="submit">Submit</button>
+        </div>
         </div>
       </form>
     </div>

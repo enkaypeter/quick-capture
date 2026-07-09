@@ -14,3 +14,11 @@ class User(db.Model, UserMixin):
     password = db.Column(db.String(150))
     first_name = db.Column(db.String(50))
     notes = db.relationship('Note')
+    cases = db.relationship('Case')
+
+class Case(db.Model):
+    id = db.Column(db.Integer, primary_key=True)
+    caseName = db.Column(db.String(150))
+    caseDetail = db.Column(db.String(1000))
+    caseAttach = db.Column(db.String(10000))
+    userc_id = db.column(db.Integer, db.ForeignKey('user.id'))

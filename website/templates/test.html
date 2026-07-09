@@ -1,0 +1,38 @@
+{% extends "base.html"%} {% block title %}Home{% endblock %} {% block content %}
+
+<div class="container">
+  <div class="row">
+    <div class="col-12">
+      <br />
+      <form class="row row-cols-3 align-items-center" action="#">
+        <div class="mb-3">
+          <label class="form-label" for="formCaseName">Case Name</label>
+          <input
+            class="form-control"
+            type="text"
+            placeholder="Please enter Case Name"
+            id="formCaseName"
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="formCaseDetail">Case Details</label>
+          <input
+            class="form-control"
+            type="text"
+            placeholder="Please enter case details"
+            id="formCaseDetail"
+          />
+        </div>
+        <div class="mb-3">
+          <label class="form-label" for="formFile">Attachments</label>
+          <input class="form-control" type="file" id="formAttachments" />
+        </div>
+        <div>
+          <button class="btn btn-primary" type="submit">Submit</button>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

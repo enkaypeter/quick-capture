@@ -6,7 +6,9 @@ from flask_login import LoginManager
 
 db = SQLAlchemy()
 DB_NAME = "database.db"
-UPLOAD_FOLDER = '/cases'
+UPLOAD_FOLDER = 'cases'
+case_path = os.path.join((os.path.dirname(os.path.abspath(__file__))), UPLOAD_FOLDER)
+
 
 def create_app():
       app = Flask(__name__)
@@ -25,6 +27,8 @@ def create_app():
 
       with app.app_context():
             db.create_all()
+            #os.mkdir(case_path)
+            
 
       login_manager = LoginManager()
       login_manager.login_view = 'auth.login'
@@ -33,10 +37,6 @@ def create_app():
       @login_manager.user_loader
       def load_user(id):
             return User.query.get(int(id))
-
-      def allowed_file(filename):
-            return '.' in filename and \
-                  filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
       return app
 

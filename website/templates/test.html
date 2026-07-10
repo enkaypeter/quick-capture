@@ -1,4 +1,4 @@
-{% extends "base.html"%} {% block title %}Home{% endblock %} {% block content %}
+{% extends "base.html"%} {% block title %}Add New Case{% endblock %} {% block content %}
 
 <div class="container">
   <div class="row">
@@ -7,7 +7,7 @@
       <form
         class="row row-cols-3 align-items-center"
         method="POST"
-        action="{{url_for('views.case_add') }}"
+        action="{{url_for('views.test') }}"
         enctype="multipart/form-data"
       >
         <div class="mb-3">
@@ -32,7 +32,7 @@
         </div>
         <div class="mb-3">
           <label class="form-label">Attachments</label>
-          <input type="file" class="form-control" id="formAttachments" type="file"  />
+          <input type="file" class="form-control" id="formAttachments" name="file"  />
         </div>
         <div>
           <button class="btn btn-primary" type="submit">Submit</button>

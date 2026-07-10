@@ -21,4 +21,4 @@ class Case(db.Model):
     caseName = db.Column(db.String(150))
     caseDetail = db.Column(db.String(1000))
     caseAttach = db.Column(db.String(10000))
-    userc_id = db.column(db.Integer, db.ForeignKey('user.id'))
+    user_id = db.Column(db.Integer, db.ForeignKey('user.id'))

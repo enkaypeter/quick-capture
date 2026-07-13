@@ -1,0 +1,5 @@
+# requirements needed for the webapp to function properly
+flask
+flask-sqlalchemy
+flask-login
+werkzeug

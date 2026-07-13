@@ -1,4 +1,4 @@
-from flask import Blueprint, render_template, flash, request, jsonify, redirect, url_for
+from flask import Blueprint, render_template, flash, request, jsonify, redirect, url_for, send_from_directory
 from flask_login import login_required, current_user
 import pandas
 import json
@@ -8,11 +8,16 @@ from werkzeug.utils import secure_filename
 import os
 
 views = Blueprint('views', __name__)
-ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif', 'py'}
+ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
 CURR_DIR = current_directory = os.path.dirname(os.path.abspath(__file__))
 CASE_PATH = os.path.join(CURR_DIR, UPLOAD_FOLDER)
 print(CURR_DIR)
 print(CASE_PATH)
+
+@views.route('/cases/<path:filename>')
+def serve_case_file(filename):
+    cases_dir = os.path.join(CURR_DIR, UPLOAD_FOLDER)
+    return send_from_directory(cases_dir, filename)
 
 @views.route('/', methods=['GET', 'POST'])
 @login_required
@@ -34,8 +39,13 @@ def allowed_file(filename):
     return '.' in filename and \
            filename.rsplit('.', 1)[1].lower() in ALLOWED_EXTENSIONS
 
-@views.route('/test', methods=['GET', 'POST'])
-def test():
+@views.route('/case_view', methods=['GET', 'POST'])
+@login_required
+def case_view():
+    return render_template('case_display.html', user=current_user)
+
+@views.route('/case_add', methods=['GET', 'POST'])
+def case_add():
     if request.method == 'POST':
         caseName = request.form.get('formCaseName')
         caseDetail = request.form.get('formCaseDetail')
@@ -46,7 +56,7 @@ def test():
             print(new_case)
             db.session.add(new_case)
             db.session.commit()
-            return redirect(url_for('views.text'))
+            return redirect(url_for('views.case_add'))
 
         file = request.files['file']
         # If the user does not select a file, the browser submits an
@@ -60,8 +70,8 @@ def test():
             print(new_case)
             db.session.add(new_case)
             db.session.commit()
-            return redirect(url_for('views.test'))
-    return render_template("test.html", user=current_user)
+            return redirect(url_for('views.case_add'))
+    return render_template("case_add.html", user=current_user)
     
 
 #@views.route('/case_add', methods=['POST'])

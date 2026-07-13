@@ -1,0 +1,25 @@
+{% extends "base.html"%} {% block title %}Add New Case{% endblock %} {% block
+content %}
+
+<div class="container">
+  <div class="row">
+    <div class="col-12">
+      <h3 class="h3">Case details</h3>
+      <div class="list-group list-group-flush" id="cases">
+        {% for case in user.cases %}
+        <div class="list-group-item">
+          <h5>{{ case.caseName }}</h5>
+        </div>
+        <div class="list-group-item">
+          <h7>{{ case.caseDetail }}</h7>
+        </div>
+        <div class="list-group-item">
+          <img class="img-fluid" src="/cases/{{ case.caseAttach }}" alt="" />
+        </div>
+        {% endfor %}
+      </div>
+    </div>
+  </div>
+</div>
+
+{% endblock %}

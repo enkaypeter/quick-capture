@@ -6,6 +6,7 @@ from .models import Note, User, Case
 from . import db, UPLOAD_FOLDER
 from werkzeug.utils import secure_filename
 import os
+from datetime import datetime
 
 views = Blueprint('views', __name__)
 ALLOWED_EXTENSIONS = {'txt', 'pdf', 'png', 'jpg', 'jpeg', 'gif'}
@@ -47,15 +48,27 @@ def case_view():
 @views.route('/case_add', methods=['GET', 'POST'])
 def case_add():
     if request.method == 'POST':
-        caseName = request.form.get('formCaseName')
-        caseDetail = request.form.get('formCaseDetail')
+        caseFirstName = request.form.get('formFirstName')
+        caseSurname = request.form.get('formSurname')
+        
+        # Convert the date string to a datetime object
+        dob_parts = request.form['dob'].split('-')  # Use '-' for correct date format splitting
+        day, month, year = int(dob_parts[2]), int(dob_parts[1]), int(dob_parts[0])
+        caseDOB = datetime(year, month, day)
+        
+        caseGender = request.form.get('formGender')
+        casePhoneNum = request.form.get('formPhoneNum')
+        caseCaseDetail = request.form.get('formCaseDetail')
+        CaseNotes = request.form.get('formCaseNotes')
+        casePhysDesc = request.form.get('formPhysDesc')
         
         # check if the post request has the file part
         if 'file' not in request.files:
-            new_case = Case(caseName=caseName, caseDetail=caseDetail, caseAttach='N/A', user_id=current_user.id)
+            new_case = Case(caseFirstName=caseFirstName, caseSurname=caseSurname, caseDOB=caseDOB, caseGender=caseGender, casePhoneNum=casePhoneNum, caseLocation=caseCaseDetail, caseNotes=CaseNotes, casePhysDesc=casePhysDesc, caseAttach="N/A", user_id=current_user.id)
             print(new_case)
             db.session.add(new_case)
             db.session.commit()
+            flash('Case added!', category='success')
             return redirect(url_for('views.case_add'))
 
         file = request.files['file']
@@ -66,10 +79,11 @@ def case_add():
             print(filename)
             print(os.path.join(CASE_PATH, filename))
             file.save(os.path.join(CASE_PATH, filename))
-            new_case = Case(caseName=caseName, caseDetail=caseDetail, caseAttach=filename, user_id=current_user.id)
+            new_case = Case(caseFirstName=caseFirstName, caseSurname=caseSurname, caseDOB=caseDOB, caseGender=caseGender, casePhoneNum=casePhoneNum, caseLocation=caseCaseDetail, caseNotes=CaseNotes, casePhysDesc=casePhysDesc, caseAttach=filename, user_id=current_user.id)
             print(new_case)
             db.session.add(new_case)
             db.session.commit()
+            flash('Case added!', category='success')
             return redirect(url_for('views.case_add'))
     return render_template("case_add.html", user=current_user)
     

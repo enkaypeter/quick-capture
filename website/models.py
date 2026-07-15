@@ -18,7 +18,13 @@ class User(db.Model, UserMixin):
 
 class Case(db.Model):
     id = db.Column(db.Integer, primary_key=True)
-    caseName = db.Column(db.String(150))
-    caseDetail = db.Column(db.String(1000))
+    caseFirstName = db.Column(db.String(150))
+    caseSurname = db.Column(db.String(1000))
+    caseDOB = db.Column(db.DateTime)
+    caseGender = db.Column(db.String(20))
+    casePhoneNum = db.Column(db.String(12))
+    caseLocation = db.Column(db.String(200))
+    caseNotes = db.Column(db.String(1500))
+    casePhysDesc = db.Column(db.String(400))
     caseAttach = db.Column(db.String(10000))
     user_id = db.Column(db.Integer, db.ForeignKey('user.id'))

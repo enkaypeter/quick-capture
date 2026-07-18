@@ -1,0 +1,86 @@
+{% extends "base.html" %}
+{% block title %}{{ case.full_name or case.identifier }} - Simon on the Streets{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-lg">
+    <!-- Back link -->
+    <a href="{{ url_for('cases.list_cases') }}" class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
+        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
+        Back to cases
+    </a>
+
+    <!-- Header -->
+    <div class="flex items-start justify-between mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">{{ case.full_name or case.identifier }}</h1>
+            <p class="text-sm text-gray-500 mt-0.5">{{ case.identifier }}</p>
+        </div>
+        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium
+            {% if case.category == 'client' %}bg-green-100 text-green-700
+            {% elif case.category == 'caseload' %}bg-blue-100 text-blue-700
+            {% else %}bg-gray-100 text-gray-600{% endif %}">
+            {{ case.category }}
+        </span>
+    </div>
+
+    <!-- Details -->
+    <div class="space-y-4 rounded-lg border border-gray-200 bg-white p-5">
+        {% if case.full_name %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Name</dt>
+            <dd class="mt-0.5 text-sm text-gray-900">{{ case.full_name }}</dd>
+        </div>
+        {% endif %}
+
+        {% if case.phone_number %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</dt>
+            <dd class="mt-0.5 text-sm text-gray-900">{{ case.phone_number }}</dd>
+        </div>
+        {% endif %}
+
+        {% if case.location_w3w %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Location</dt>
+            <dd class="mt-0.5 text-sm text-gray-900">///{{ case.location_w3w }}</dd>
+        </div>
+        {% endif %}
+
+        {% if case.notes %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Case Notes</dt>
+            <dd class="mt-1 text-sm text-gray-900 prose prose-sm max-w-none">{{ case.notes|safe }}</dd>
+        </div>
+        {% endif %}
+
+        {% if case.voice_note_path %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Voice Note</dt>
+            <dd class="mt-1">
+                <audio controls class="w-full" src="{{ url_for('static', filename='uploads/' + case.voice_note_path) }}"></audio>
+            </dd>
+        </div>
+        {% endif %}
+
+        {% if case.voice_note_transcript %}
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Transcript</dt>
+            <dd class="mt-0.5 text-sm text-gray-900">{{ case.voice_note_transcript }}</dd>
+        </div>
+        {% endif %}
+
+        <div>
+            <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Created</dt>
+            <dd class="mt-0.5 text-sm text-gray-900">{{ case.created_at.strftime('%d %B %Y at %H:%M') }}</dd>
+        </div>
+    </div>
+
+    <!-- Actions -->
+    <div class="mt-6 flex items-center gap-3">
+        <form method="POST" action="{{ url_for('cases.delete_case', case_id=case.id) }}" onsubmit="return confirm('Are you sure you want to delete this case?')">
+            <button type="submit" class="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
+                Delete Case
+            </button>
+        </form>
+    </div>
+</div>
+{% endblock %}

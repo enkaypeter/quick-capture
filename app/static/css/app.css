@@ -1,0 +1,20 @@
+/* Minimal custom styles - Tailwind handles most styling via CDN */
+
+/* Smooth page transitions */
+body {
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+}
+
+/* Ensure Quill editor is touch-friendly on mobile */
+@media (max-width: 640px) {
+    .ql-toolbar.ql-snow {
+        padding: 4px;
+    }
+    .ql-toolbar.ql-snow .ql-formats {
+        margin-right: 8px;
+    }
+    .ql-container.ql-snow {
+        min-height: 100px;
+    }
+}

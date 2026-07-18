@@ -1,0 +1,25 @@
+# Python
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+
+# Git
+.git
+.gitignore
+
+# IDE / Editor
+.vscode
+.notes
+.kiro
+
+# Runtime data
+instance/
+uploads/
+.venv/
+
+# Environment
+.env
+
+# macOS
+.DS_Store

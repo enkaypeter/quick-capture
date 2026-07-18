@@ -1,0 +1,139 @@
+{% extends "base.html" %}
+{% block title %}Create New Case - Simon on the Streets{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-lg">
+    <h1 class="text-2xl font-bold mb-1">Create New Case</h1>
+    <p class="text-sm text-gray-500 mb-6">Enter the client details below to create a new case record.</p>
+
+    <form method="POST" enctype="multipart/form-data" id="case-form" class="space-y-5">
+        <!-- Full name -->
+        <div>
+            <label for="full_name" class="block text-sm font-semibold text-gray-800 mb-1">
+                Full name or known name <span class="text-red-500">*</span>
+            </label>
+            <input
+                type="text"
+                id="full_name"
+                name="full_name"
+                placeholder="Full name or known name"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            />
+        </div>
+
+        <!-- Phone Number -->
+        <div>
+            <label for="phone_number" class="block text-sm font-semibold text-gray-800 mb-1">Phone Number</label>
+            <input
+                type="tel"
+                id="phone_number"
+                name="phone_number"
+                placeholder="07123 456789"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            />
+        </div>
+
+        <!-- Location -->
+        <div>
+            <label for="location_search" class="block text-sm font-semibold text-gray-800 mb-1">
+                Location <span class="text-red-500">*</span>
+            </label>
+            <input
+                type="text"
+                id="location_search"
+                name="location_w3w"
+                placeholder="Search or select a location"
+                readonly
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm bg-gray-50 focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            />
+            <input type="hidden" id="location_lat" name="location_lat" />
+            <input type="hidden" id="location_lng" name="location_lng" />
+            <button
+                type="button"
+                id="share-location-btn"
+                class="mt-2 inline-flex items-center gap-1 rounded-lg border border-brand-600 px-3 py-1.5 text-xs font-medium text-brand-600 hover:bg-brand-50 transition-colors"
+            >
+                <svg class="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M5.05 4.05a7 7 0 119.9 9.9L10 18.9l-4.95-4.95a7 7 0 010-9.9zM10 11a2 2 0 100-4 2 2 0 000 4z" clip-rule="evenodd"/></svg>
+                Share my location
+            </button>
+            <p id="location-status" class="mt-1 text-xs text-gray-500 hidden"></p>
+        </div>
+
+        <!-- Category -->
+        <div>
+            <label for="category" class="block text-sm font-semibold text-gray-800 mb-1">Category</label>
+            <select
+                id="category"
+                name="category"
+                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
+            >
+                <option value="non-caseload" selected>Non-caseload</option>
+                <option value="caseload">Caseload</option>
+                <option value="client">Client</option>
+            </select>
+        </div>
+
+        <!-- Case Notes (WYSIWYG) -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-800 mb-1">Case Notes</label>
+            <div id="editor" class="bg-white"></div>
+            <input type="hidden" id="notes" name="notes" />
+        </div>
+
+        <!-- Voice Note -->
+        <div>
+            <label class="block text-sm font-semibold text-gray-800 mb-1">Voice Note <span class="text-gray-400 font-normal">(optional)</span></label>
+            <p class="text-xs text-gray-500 mb-2">Record a brief spoken note to attach to this case. Once recorded, you can play back, view the transcript, or copy the transcript into your notes.</p>
+            <div id="voice-note-container" class="rounded-lg border border-gray-200 p-4 bg-white">
+                <div id="voice-controls">
+                    <button
+                        type="button"
+                        id="record-btn"
+                        class="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                        <svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+                        Start Recording
+                    </button>
+                </div>
+                <div id="voice-playback" class="hidden mt-3">
+                    <audio id="audio-playback" controls class="w-full"></audio>
+                </div>
+            </div>
+            <input type="file" id="voice_note" name="voice_note" class="hidden" accept="audio/*" />
+        </div>
+
+        <!-- Actions -->
+        <div class="flex items-center gap-3 pt-2">
+            <a href="{{ url_for('cases.list_cases') }}" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">
+                Cancel
+            </a>
+            <button type="submit" class="rounded-lg bg-brand-600 px-5 py-2 text-sm font-medium text-white hover:bg-brand-700 focus:outline-none focus:ring-2 focus:ring-brand-500 transition-colors">
+                Create Case
+            </button>
+        </div>
+    </form>
+</div>
+{% endblock %}
+
+{% block scripts %}
+<script>
+    // Initialize Quill editor
+    document.addEventListener('DOMContentLoaded', function() {
+        const quill = new Quill('#editor', {
+            theme: 'snow',
+            placeholder: 'Add important information',
+            modules: {
+                toolbar: [
+                    ['bold', 'italic', 'underline'],
+                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                    ['clean']
+                ]
+            }
+        });
+
+        // Sync Quill content to hidden input on form submit
+        document.getElementById('case-form').addEventListener('submit', function() {
+            document.getElementById('notes').value = quill.root.innerHTML;
+        });
+    });
+</script>
+{% endblock %}

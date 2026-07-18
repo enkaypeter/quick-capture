@@ -1,0 +1,20 @@
+# IDE / Editor
+.kiro
+.notes
+.vscode
+
+# Python
+__pycache__/
+*.pyc
+*.pyo
+.venv/
+
+# Runtime data
+instance/
+uploads/
+
+# Environment
+.env
+
+# macOS
+.DS_Store

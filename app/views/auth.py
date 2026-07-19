@@ -52,7 +52,8 @@ def sign_up():
             if error:
                 flash(error, category="error")
             else:
-                flash("Account created!", category="success")
-                return redirect(url_for("auth.login"))
+                login_user(user, remember=True)
+                flash("Welcome to QuickCapture!", category="success")
+                return redirect(url_for("cases.list_cases"))
 
     return render_template("auth/sign_up.html")

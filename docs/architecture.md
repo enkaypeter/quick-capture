@@ -1,6 +1,6 @@
 ## Overview
 
-Quick Capture MVP is a case management tool for Simon on the Streets social workers. It enables rapid recording of interactions with prospects — capturing names, locations, notes, and voice recordings with minimal friction.
+Quick Capture [MVP] is a case management tool for Simon on the Streets social workers. It enables rapid recording of interactions with prospects — capturing names, locations, notes, and voice recordings with minimal friction.
 
 The system is composed of two services running in Docker containers on the same network:
 

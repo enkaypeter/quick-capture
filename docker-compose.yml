@@ -1,5 +1,6 @@
 services:
   web:
+    container_name: quickcapture-web
     build: .
     ports:
       - "5001:5001"
@@ -16,7 +17,7 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/login')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/')"]
       interval: 30s
       timeout: 10s
       retries: 3

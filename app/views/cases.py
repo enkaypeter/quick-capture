@@ -8,6 +8,14 @@ case_service = CaseService()
 
 
 @cases_bp.route("/")
+def landing():
+    """Public landing page."""
+    if current_user.is_authenticated:
+        return redirect(url_for("cases.list_cases"))
+    return render_template("landing.html")
+
+
+@cases_bp.route("/dashboard")
 @login_required
 def list_cases():
     """Dashboard view - list all cases for the current user."""

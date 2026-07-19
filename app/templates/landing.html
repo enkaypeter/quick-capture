@@ -31,8 +31,15 @@
         <div class="mx-auto max-w-5xl px-6 py-5 flex items-center justify-between">
             <span class="text-white font-bold text-lg tracking-tight">SIMON<sup class="text-xs">ON THE</sup> STREETS</span>
             <div class="flex items-center gap-4">
-                <a href="/login" class="text-white/80 hover:text-white text-sm font-medium">Login</a>
-                <a href="/sign-up" class="rounded-lg bg-white/10 border border-white/20 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Sign Up</a>
+                {% if is_authenticated %}
+                <a href="/dashboard" class="rounded-lg bg-white/10 border border-white/20 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Open App</a>
+                {% else %}
+                <!-- Desktop: Login + Sign Up -->
+                <a href="/login" class="hidden sm:inline-block text-white/80 hover:text-white text-sm font-medium">Login</a>
+                <a href="/sign-up" class="hidden sm:inline-block rounded-lg bg-white/10 border border-white/20 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Sign Up</a>
+                <!-- Mobile: single Get Started -->
+                <a href="/sign-up" class="sm:hidden rounded-lg bg-white/10 border border-white/20 px-4 py-1.5 text-sm font-medium text-white hover:bg-white/20 transition-colors">Get Started</a>
+                {% endif %}
             </div>
         </div>
     </nav>
@@ -50,12 +57,18 @@
                 Record voice notes, capture locations, and build case histories from the street.
             </p>
             <div class="mt-10 flex items-center justify-center gap-4">
+                {% if is_authenticated %}
+                <a href="/dashboard" class="rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700 shadow-lg shadow-brand-600/25 transition-colors">
+                    Open App
+                </a>
+                {% else %}
                 <a href="/sign-up" class="rounded-lg bg-brand-600 px-6 py-3 text-sm font-semibold text-white hover:bg-brand-700 shadow-lg shadow-brand-600/25 transition-colors">
                     Get Started
                 </a>
                 <a href="/login" class="rounded-lg bg-white/10 border border-white/20 px-6 py-3 text-sm font-semibold text-white hover:bg-white/20 transition-colors">
                     Login
                 </a>
+                {% endif %}
             </div>
         </div>
     </section>

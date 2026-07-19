@@ -36,6 +36,12 @@ services:
       retries: 3
       start_period: 15s
 
+## add NPM network for public visibility on https://quickcapture-poc.t2klabs.com/
+networks:
+  edge_net:
+    external: true
+    name: withpostgres_default
+
 volumes:
   db_data:
   uploads_data:

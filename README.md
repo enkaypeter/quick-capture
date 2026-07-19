@@ -2,4 +2,5 @@ This webapp was created within VSCode, so I recommend using this or any other py
 
 
 
-To install all of the required python modules, please run 'pip install -r requirements.txt' 
+To install all of the required python modules, please run 'pip install -r requirements.txt'
+![Architecture Docs](docs/architecture.md)

@@ -97,8 +97,29 @@
                 <div id="voice-playback" class="hidden mt-3">
                     <audio id="audio-playback" controls class="w-full"></audio>
                 </div>
+                <!-- Transcription display -->
+                <div id="transcription-section" class="hidden mt-3">
+                    <div id="transcription-loading" class="hidden flex items-center gap-2 text-sm text-gray-500">
+                        <svg class="w-4 h-4 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                        Transcribing...
+                    </div>
+                    <div id="transcription-result" class="hidden">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="inline-flex items-center gap-1 text-xs font-medium text-purple-700">
+                                <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+                                Transcript
+                            </span>
+                            <button type="button" id="copy-to-notes-btn" class="text-xs font-medium text-brand-600 hover:text-brand-700">
+                                Copy to notes
+                            </button>
+                        </div>
+                        <p id="transcription-text" class="text-sm text-gray-700 bg-gray-50 rounded-md p-3 border border-gray-100"></p>
+                    </div>
+                    <div id="transcription-error" class="hidden text-sm text-red-600"></div>
+                </div>
             </div>
             <input type="file" id="voice_note" name="voice_note" class="hidden" accept="audio/*" />
+            <input type="hidden" id="voice_transcript" name="voice_transcript" />
         </div>
 
         <!-- Actions -->
@@ -116,9 +137,9 @@
 
 {% block scripts %}
 <script>
-    // Initialize Quill editor
     document.addEventListener('DOMContentLoaded', function() {
-        const quill = new Quill('#editor', {
+        // Initialize Quill editor
+        var quill = new Quill('#editor', {
             theme: 'snow',
             placeholder: 'Add important information',
             modules: {
@@ -133,6 +154,137 @@
         // Sync Quill content to hidden input on form submit
         document.getElementById('case-form').addEventListener('submit', function() {
             document.getElementById('notes').value = quill.root.innerHTML;
+        });
+
+        // --- Voice Note Recording + Transcription ---
+        var recordBtn = document.getElementById('record-btn');
+        var voicePlayback = document.getElementById('voice-playback');
+        var audioPlayback = document.getElementById('audio-playback');
+        var voiceNoteInput = document.getElementById('voice_note');
+        var transcriptionSection = document.getElementById('transcription-section');
+        var transcriptionLoading = document.getElementById('transcription-loading');
+        var transcriptionResult = document.getElementById('transcription-result');
+        var transcriptionText = document.getElementById('transcription-text');
+        var transcriptionError = document.getElementById('transcription-error');
+        var copyToNotesBtn = document.getElementById('copy-to-notes-btn');
+
+        var mediaRecorder = null;
+        var audioChunks = [];
+        var isRecording = false;
+
+        recordBtn.addEventListener('click', function() {
+            if (!isRecording) {
+                startRecording();
+            } else {
+                stopRecording();
+            }
+        });
+
+        function startRecording() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Audio recording is not supported in this browser.');
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(function(stream) {
+                    mediaRecorder = new MediaRecorder(stream);
+                    audioChunks = [];
+
+                    mediaRecorder.addEventListener('dataavailable', function(event) {
+                        audioChunks.push(event.data);
+                    });
+
+                    mediaRecorder.addEventListener('stop', function() {
+                        var audioBlob = new Blob(audioChunks, { type: 'audio/webm' });
+                        var audioUrl = URL.createObjectURL(audioBlob);
+
+                        // Show playback
+                        audioPlayback.src = audioUrl;
+                        voicePlayback.classList.remove('hidden');
+
+                        // Attach file to hidden input
+                        var file = new File([audioBlob], 'voice_note.webm', { type: 'audio/webm' });
+                        var dt = new DataTransfer();
+                        dt.items.add(file);
+                        voiceNoteInput.files = dt.files;
+
+                        // Stop all tracks
+                        stream.getTracks().forEach(function(track) { track.stop(); });
+
+                        // Trigger transcription
+                        transcribeAudio(audioBlob);
+                    });
+
+                    mediaRecorder.start();
+                    isRecording = true;
+                    recordBtn.innerHTML =
+                        '<svg class="w-4 h-4 text-red-500 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/></svg> Stop Recording';
+                    recordBtn.classList.add('border-red-300', 'text-red-600');
+                    recordBtn.classList.remove('border-gray-300', 'text-gray-700');
+                })
+                .catch(function(err) {
+                    alert('Could not access microphone: ' + err.message);
+                });
+        }
+
+        function stopRecording() {
+            if (mediaRecorder && mediaRecorder.state !== 'inactive') {
+                mediaRecorder.stop();
+            }
+            isRecording = false;
+            recordBtn.innerHTML =
+                '<svg class="w-4 h-4 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg> Re-record';
+            recordBtn.classList.remove('border-red-300', 'text-red-600');
+            recordBtn.classList.add('border-gray-300', 'text-gray-700');
+        }
+
+        function transcribeAudio(audioBlob) {
+            // Show loading state
+            transcriptionSection.classList.remove('hidden');
+            transcriptionLoading.classList.remove('hidden');
+            transcriptionResult.classList.add('hidden');
+            transcriptionError.classList.add('hidden');
+
+            var formData = new FormData();
+            formData.append('audio', audioBlob, 'voice_note.webm');
+
+            fetch('/transcribe', {
+                method: 'POST',
+                body: formData
+            })
+            .then(function(response) { return response.json(); })
+            .then(function(data) {
+                transcriptionLoading.classList.add('hidden');
+
+                if (data.text) {
+                    transcriptionText.textContent = data.text;
+                    transcriptionResult.classList.remove('hidden');
+                    // Store transcript in hidden field for form submission
+                    document.getElementById('voice_transcript').value = data.text;
+                } else {
+                    transcriptionError.textContent = data.error || 'Transcription unavailable.';
+                    transcriptionError.classList.remove('hidden');
+                }
+            })
+            .catch(function(err) {
+                transcriptionLoading.classList.add('hidden');
+                transcriptionError.textContent = 'Could not reach transcription service.';
+                transcriptionError.classList.remove('hidden');
+            });
+        }
+
+        // Copy transcript to Quill editor
+        copyToNotesBtn.addEventListener('click', function() {
+            var text = transcriptionText.textContent;
+            if (text) {
+                var length = quill.getLength();
+                if (length > 1) {
+                    quill.insertText(length - 1, '\n' + text);
+                } else {
+                    quill.setText(text);
+                }
+            }
         });
     });
 </script>

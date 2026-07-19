@@ -27,12 +27,8 @@ class Case(db.Model):
     location_lat = db.Column(db.Float, nullable=True)
     location_lng = db.Column(db.Float, nullable=True)
 
-    # Case notes - rich text (HTML from WYSIWYG editor)
-    notes = db.Column(db.Text, nullable=True)
-
     # Voice note - path to stored audio file
     voice_note_path = db.Column(db.String(500), nullable=True)
-    voice_note_transcript = db.Column(db.Text, nullable=True)
 
     # Category - defaults to non-caseload
     category = db.Column(
@@ -49,6 +45,11 @@ class Case(db.Model):
 
     # Foreign key to the social worker who created it
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+
+    # Relationship to case notes
+    notes = db.relationship(
+        "CaseNote", backref="case", lazy="dynamic", cascade="all, delete-orphan"
+    )
 
     def __repr__(self):
         return f"<Case {self.identifier}>"

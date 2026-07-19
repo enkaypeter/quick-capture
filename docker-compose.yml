@@ -1,14 +1,19 @@
 services:
-  web-app:
+  web:
     build: .
     ports:
       - "5001:5001"
     environment:
       - FLASK_ENV=production
       - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
+      - TRANSCRIPTION_URL=http://transcriber:8080
+      - W3W_API_KEY=${W3W_API_KEY:-}
     volumes:
       - db_data:/app/instance
       - uploads_data:/app/uploads
+    depends_on:
+      transcriber:
+        condition: service_healthy
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/login')"]
@@ -16,6 +21,19 @@ services:
       timeout: 10s
       retries: 3
       start_period: 10s
+
+  transcriber:
+    build:
+      context: ./services/transcriber
+    expose:
+      - "8080"
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
 
 volumes:
   db_data:

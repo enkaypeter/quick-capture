@@ -14,11 +14,11 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Copy application code
 COPY . .
 
-# Create required directories
-RUN mkdir -p instance uploads/cases
+# Create required directories with proper permissions
+RUN mkdir -p instance uploads/cases && chmod 777 instance uploads/cases
 
 # Expose port
 EXPOSE 5001
 
 # Run with gunicorn for production
-CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--timeout", "120", "main:app"]
+CMD ["gunicorn", "--bind", "0.0.0.0:5001", "--workers", "2", "--timeout", "120", "--preload", "main:app"]

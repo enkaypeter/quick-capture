@@ -20,6 +20,7 @@ def create_app(config_name: str = None) -> Flask:
 
     # Ensure required directories exist
     os.makedirs(app.config["UPLOAD_FOLDER"], exist_ok=True)
+    os.makedirs(app.config["DB_DIR"], exist_ok=True)
     os.makedirs(os.path.join(app.instance_path), exist_ok=True)
 
     # Initialize extensions
@@ -27,22 +28,6 @@ def create_app(config_name: str = None) -> Flask:
 
     db.init_app(app)
     login_manager.init_app(app)
-
-    # Enable SQLite WAL mode for better concurrency
-    @app.after_request
-    def _set_pragma(response):
-        return response
-
-    with app.app_context():
-        # Set WAL mode on first connection
-        from sqlalchemy import event
-
-        @event.listens_for(db.engine, "connect")
-        def _set_sqlite_pragma(dbapi_conn, connection_record):
-            cursor = dbapi_conn.cursor()
-            cursor.execute("PRAGMA journal_mode=WAL")
-            cursor.execute("PRAGMA synchronous=NORMAL")
-            cursor.close()
 
     # User loader
     from app.models.user import User
@@ -57,8 +42,17 @@ def create_app(config_name: str = None) -> Flask:
     app.register_blueprint(auth_bp)
     app.register_blueprint(cases_bp)
 
-    # Create database tables
+    # Create database tables and set SQLite WAL mode
     with app.app_context():
+        from sqlalchemy import event
+
+        @event.listens_for(db.engine, "connect")
+        def _set_sqlite_pragma(dbapi_conn, connection_record):
+            cursor = dbapi_conn.cursor()
+            cursor.execute("PRAGMA journal_mode=WAL")
+            cursor.execute("PRAGMA synchronous=NORMAL")
+            cursor.close()
+
         db.create_all()
 
     return app

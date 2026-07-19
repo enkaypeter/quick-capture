@@ -85,14 +85,14 @@
         } else {
           locationInput.value = lat.toFixed(5) + "," + lng.toFixed(5);
           showLocationStatus(
-            data.error || "W3W conversion unavailable, coordinates saved.",
+            "Unable to fetch address from location service. Location service unavailable.",
             true
           );
         }
       })
       .catch(function () {
         locationInput.value = lat.toFixed(5) + "," + lng.toFixed(5);
-        showLocationStatus("W3W conversion failed, coordinates saved.", true);
+        showLocationStatus("Unable to fetch address from location service. Location service unavailable.", true);
       })
       .finally(function () {
         if (shareBtn) shareBtn.disabled = false;

@@ -10,9 +10,7 @@ case_service = CaseService()
 @cases_bp.route("/")
 def landing():
     """Public landing page."""
-    if current_user.is_authenticated:
-        return redirect(url_for("cases.list_cases"))
-    return render_template("landing.html")
+    return render_template("landing.html", is_authenticated=current_user.is_authenticated)
 
 
 @cases_bp.route("/dashboard")
@@ -209,20 +207,25 @@ def convert_location():
 
     Called via AJAX from the create case form after geolocation is obtained.
     Proxies the request to the What3Words API to keep the API key server-side.
+    Specific errors are logged server-side; the client receives a generic message.
     """
+    import logging
     import requests as http_requests
     from flask import current_app
+
+    logger = logging.getLogger(__name__)
 
     data = request.get_json()
     lat = data.get("lat")
     lng = data.get("lng")
 
     if lat is None or lng is None:
-        return jsonify({"error": "lat and lng are required"}), 400
+        return jsonify({"error": "Coordinates not provided"}), 400
 
     api_key = current_app.config.get("W3W_API_KEY", "")
     if not api_key:
-        return jsonify({"error": "What3Words API key not configured"}), 503
+        logger.error("What3Words API key not configured (W3W_API_KEY env var is empty)")
+        return jsonify({"error": "Location service unavailable"}), 503
 
     try:
         response = http_requests.get(
@@ -232,7 +235,8 @@ def convert_location():
         )
 
         if response.status_code != 200:
-            return jsonify({"error": "What3Words API request failed"}), 502
+            logger.error(f"What3Words API returned {response.status_code}: {response.text}")
+            return jsonify({"error": "Location service unavailable"}), 502
 
         result = response.json()
         words = result.get("words")
@@ -241,9 +245,12 @@ def convert_location():
             return jsonify({"words": words})
         else:
             error_msg = result.get("error", {}).get("message", "Unknown error")
-            return jsonify({"error": error_msg}), 502
+            logger.error(f"What3Words API error: {error_msg}")
+            return jsonify({"error": "Location service unavailable"}), 502
 
     except http_requests.Timeout:
-        return jsonify({"error": "What3Words API timed out"}), 504
+        logger.error("What3Words API request timed out")
+        return jsonify({"error": "Location service unavailable"}), 504
     except Exception as e:
-        return jsonify({"error": str(e)}), 500
+        logger.error(f"What3Words conversion failed: {e}")
+        return jsonify({"error": "Location service unavailable"}), 500

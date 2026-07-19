@@ -17,11 +17,14 @@ services:
         condition: service_healthy
     restart: unless-stopped
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/login')"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://localhost:5001/')"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 10s
+    networks:
+      - default
+      - edge_net
 
   transcriber:
     build:
@@ -35,6 +38,14 @@ services:
       timeout: 10s
       retries: 3
       start_period: 15s
+    networks:
+      - default
+
+## add NPM network for public visibility on https://quickcapture-poc.t2klabs.com/
+networks:
+  edge_net:
+    external: true
+    name: withpostgres_default
 
 volumes:
   db_data:

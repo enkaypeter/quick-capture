@@ -55,4 +55,8 @@ def create_app(config_name: str = None) -> Flask:
 
         db.create_all()
 
+        # Run migrations for existing databases (adds new columns/tables)
+        from app.migrations import run_migrations
+        run_migrations()
+
     return app

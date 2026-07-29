@@ -200,57 +200,35 @@ def transcribe_audio():
 
 
 
-@cases_bp.route("/location/convert", methods=["POST"])
+@cases_bp.route("/location/autosuggest", methods=["POST"])
 @login_required
-def convert_location():
-    """Convert GPS coordinates to a What3Words address.
+def autosuggest_location():
+    """Return What3Words autosuggest results for a partial address.
 
-    Called via AJAX from the create case form after geolocation is obtained.
-    Proxies the request to the What3Words API to keep the API key server-side.
-    Specific errors are logged server-side; the client receives a generic message.
+    Called via AJAX as the user types a what3words address.
+    Requires at least the first two words and first character of the third.
     """
-    import logging
-    import requests as http_requests
-    from flask import current_app
-
-    logger = logging.getLogger(__name__)
+    from app.services.w3w_service import W3WService
 
     data = request.get_json()
-    lat = data.get("lat")
-    lng = data.get("lng")
+    input_text = data.get("input", "").strip()
 
-    if lat is None or lng is None:
-        return jsonify({"error": "Coordinates not provided"}), 400
+    if not input_text:
+        return jsonify({"error": "Input required"}), 400
 
-    api_key = current_app.config.get("W3W_API_KEY", "")
-    if not api_key:
-        logger.error("What3Words API key not configured (W3W_API_KEY env var is empty)")
-        return jsonify({"error": "Location service unavailable"}), 503
+    focus_lat = data.get("focus_lat")
+    focus_lng = data.get("focus_lng")
+    clip_to_country = data.get("clip_to_country")
 
-    try:
-        response = http_requests.get(
-            "https://api.what3words.com/v3/convert-to-3wa",
-            params={"coordinates": f"{lat},{lng}", "key": api_key},
-            timeout=10,
-        )
+    w3w = W3WService()
+    suggestions, error = w3w.autosuggest(
+        input_text=input_text,
+        focus_lat=focus_lat,
+        focus_lng=focus_lng,
+        clip_to_country=clip_to_country,
+    )
 
-        if response.status_code != 200:
-            logger.error(f"What3Words API returned {response.status_code}: {response.text}")
-            return jsonify({"error": "Location service unavailable"}), 502
+    if error:
+        return jsonify({"error": error}), 502
 
-        result = response.json()
-        words = result.get("words")
-
-        if words:
-            return jsonify({"words": words})
-        else:
-            error_msg = result.get("error", {}).get("message", "Unknown error")
-            logger.error(f"What3Words API error: {error_msg}")
-            return jsonify({"error": "Location service unavailable"}), 502
-
-    except http_requests.Timeout:
-        logger.error("What3Words API request timed out")
-        return jsonify({"error": "Location service unavailable"}), 504
-    except Exception as e:
-        logger.error(f"What3Words conversion failed: {e}")
-        return jsonify({"error": "Location service unavailable"}), 500
+    return jsonify({"suggestions": suggestions})

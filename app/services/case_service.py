@@ -10,6 +10,7 @@ from app.models.case import Case, CaseCategory
 from app.models.case_note import CaseNote, NoteSource
 from app.repositories.case_repository import CaseRepository
 from app.repositories.case_note_repository import CaseNoteRepository
+from app.services.audit_service import AuditService
 from app.services.identifier_service import IdentifierService
 from app.services.transcription_client import TranscriptionClient
 
@@ -24,6 +25,7 @@ class CaseService:
         self.note_repo = CaseNoteRepository()
         self.identifier_service = IdentifierService()
         self.transcription_client = TranscriptionClient()
+        self.audit_service = AuditService()
 
     def create_case(
         self,
@@ -79,20 +81,28 @@ class CaseService:
             user_id=user_id,
         )
 
-        # Create the initial manual note if content was provided
-        if notes_content and self._has_meaningful_content(notes_content):
-            self.add_note(
-                case_id=case.id,
-                content=notes_content,
-                source=NoteSource.MANUAL,
-            )
+        # Audit: log case creation
+        self.audit_service.log_create(
+            case_id=case.id,
+            user_id=user_id,
+            field_name="case",
+            new_value=f"Created case {case.identifier}",
+        )
 
-        # Create transcription note if transcript was provided from the frontend
+        # Create note: transcription takes precedence over manual
         if voice_transcript:
             self.add_note(
                 case_id=case.id,
                 content=f"<p>{voice_transcript}</p>",
                 source=NoteSource.TRANSCRIPTION,
+                user_id=user_id,
+            )
+        elif notes_content and self._has_meaningful_content(notes_content):
+            self.add_note(
+                case_id=case.id,
+                content=notes_content,
+                source=NoteSource.MANUAL,
+                user_id=user_id,
             )
 
         return case, None
@@ -106,12 +116,76 @@ class CaseService:
     def get_notes_for_case(self, case_id: int) -> list[CaseNote]:
         return self.note_repo.get_by_case_id(case_id)
 
+    def update_case_fields(
+        self,
+        case: Case,
+        user_id: int,
+        full_name: Optional[str] = None,
+        phone_number: Optional[str] = None,
+    ) -> Tuple[Optional[Case], Optional[str]]:
+        """Update editable case fields with audit logging.
+
+        Only full_name and phone_number are editable.
+        Location and created_at are immutable.
+        """
+        updates = {}
+
+        if full_name is not None and full_name != case.full_name:
+            self.audit_service.log_update(
+                case_id=case.id,
+                user_id=user_id,
+                field_name="full_name",
+                old_value=case.full_name or "",
+                new_value=full_name,
+            )
+            updates["full_name"] = full_name or None
+
+        if phone_number is not None and phone_number != case.phone_number:
+            self.audit_service.log_update(
+                case_id=case.id,
+                user_id=user_id,
+                field_name="phone_number",
+                old_value=case.phone_number or "",
+                new_value=phone_number,
+            )
+            updates["phone_number"] = phone_number or None
+
+        if updates:
+            return self.case_repo.update(case, **updates), None
+
+        return case, None
+
+    def update_note_content(
+        self, note_id: int, content: str, user_id: int
+    ) -> Tuple[Optional[CaseNote], Optional[str]]:
+        """Update the content of an existing note with audit logging."""
+        note = self.note_repo.get_by_id(note_id)
+        if not note:
+            return None, "Note not found"
+
+        if not content or not content.strip():
+            return None, "Note content cannot be empty"
+
+        old_content = note.content
+        updated = self.note_repo.update(note, content=content)
+
+        self.audit_service.log_update(
+            case_id=note.case_id,
+            user_id=user_id,
+            field_name=f"note:{note.id}",
+            old_value="(content edited)",
+            new_value="(content updated)",
+        )
+
+        return updated, None
+
     def add_note(
         self,
         case_id: int,
         content: str,
         source: str = NoteSource.MANUAL,
         needs_review: bool = False,
+        user_id: Optional[int] = None,
     ) -> CaseNote:
         """Add a note to a case.
 
@@ -120,35 +194,206 @@ class CaseService:
         if source == NoteSource.TRANSCRIPTION:
             needs_review = True
 
-        return self.note_repo.create(
+        note = self.note_repo.create(
             case_id=case_id,
             content=content,
             source=source,
             needs_review=needs_review,
         )
 
-    def mark_note_reviewed(self, note_id: int) -> Optional[CaseNote]:
+        # Audit: log note creation
+        if user_id:
+            self.audit_service.log_create(
+                case_id=case_id,
+                user_id=user_id,
+                field_name=f"note:{note.id}",
+                new_value=f"Added {source} note",
+            )
+
+        return note
+
+    def mark_note_reviewed(self, note_id: int, user_id: Optional[int] = None) -> Optional[CaseNote]:
         """Mark a transcribed note as reviewed."""
         note = self.note_repo.get_by_id(note_id)
         if note:
-            return self.note_repo.update(note, needs_review=False)
+            updated = self.note_repo.update(note, needs_review=False)
+            if user_id:
+                self.audit_service.log_update(
+                    case_id=note.case_id,
+                    user_id=user_id,
+                    field_name=f"note:{note.id}",
+                    old_value="needs_review=True",
+                    new_value="needs_review=False",
+                )
+            return updated
         return None
 
-    def delete_note(self, note_id: int) -> bool:
+    def delete_note(self, note_id: int, user_id: Optional[int] = None) -> bool:
         """Delete a specific note."""
         note = self.note_repo.get_by_id(note_id)
         if note:
+            case_id = note.case_id
+            if user_id:
+                self.audit_service.log_delete(
+                    case_id=case_id,
+                    user_id=user_id,
+                    field_name=f"note:{note.id}",
+                    old_value=f"Deleted {note.source} note",
+                )
             self.note_repo.delete(note)
             return True
         return False
 
-    def update_category(self, case: Case, category: str) -> Tuple[Optional[Case], Optional[str]]:
+    def update_category(
+        self, case: Case, category: str, user_id: Optional[int] = None,
+        ni_number: Optional[str] = None,
+    ) -> Tuple[Optional[Case], Optional[str]]:
+        """Update case category with audit logging.
+
+        Category progression is one-way:
+          non-caseload → caseload → client
+        Downgrading is not allowed once a case has progressed.
+        When switching to 'client', ni_number is required.
+        """
         if category not in CaseCategory.CHOICES:
             return None, f"Invalid category. Must be one of: {', '.join(CaseCategory.CHOICES)}"
-        return self.case_repo.update(case, category=category), None
 
-    def delete_case(self, case: Case) -> None:
+        # Enforce one-way category progression
+        category_order = {
+            CaseCategory.NON_CASELOAD: 0,
+            CaseCategory.CASELOAD: 1,
+            CaseCategory.CLIENT: 2,
+        }
+        current_level = category_order.get(case.category, 0)
+        new_level = category_order.get(category, 0)
+
+        if new_level < current_level:
+            return None, f"Cannot downgrade category from '{case.category}' to '{category}'"
+
+        # Validate NI number is provided when switching to client
+        if category == CaseCategory.CLIENT:
+            if not ni_number and not case.ni_number:
+                return None, "National Insurance number is required for client cases"
+
+        old_category = case.category
+        updates = {"category": category}
+
+        # Update NI number if provided
+        if ni_number is not None and ni_number != (case.ni_number or ""):
+            if user_id:
+                self.audit_service.log_update(
+                    case_id=case.id,
+                    user_id=user_id,
+                    field_name="ni_number",
+                    old_value=case.ni_number or "",
+                    new_value=ni_number,
+                )
+            updates["ni_number"] = ni_number or None
+
+        updated = self.case_repo.update(case, **updates)
+
+        if user_id and old_category != category:
+            self.audit_service.log_update(
+                case_id=case.id,
+                user_id=user_id,
+                field_name="category",
+                old_value=old_category,
+                new_value=category,
+            )
+
+        return updated, None
+
+    def update_ni_number(
+        self, case: Case, ni_number: str, user_id: int
+    ) -> Tuple[Optional[Case], Optional[str]]:
+        """Update National Insurance number with audit logging."""
+        if not ni_number or not ni_number.strip():
+            return None, "NI number is required"
+
+        old_ni = case.ni_number or ""
+        ni_number = ni_number.strip()
+
+        if old_ni == ni_number:
+            return case, None
+
+        updated = self.case_repo.update(case, ni_number=ni_number)
+
+        self.audit_service.log_update(
+            case_id=case.id,
+            user_id=user_id,
+            field_name="ni_number",
+            old_value=old_ni,
+            new_value=ni_number,
+        )
+
+        return updated, None
+
+    def get_actions_for_case(self, case_id: int) -> list:
+        """Get all actions for a case."""
+        from app.repositories.case_action_repository import CaseActionRepository
+        action_repo = CaseActionRepository()
+        return action_repo.get_by_case_id(case_id)
+
+    def update_actions(
+        self,
+        case_id: int,
+        user_id: int,
+        actions: list,
+    ) -> list:
+        """Replace case actions with the provided list.
+
+        Each action dict should have: action_type, label, completed.
+        Predefined actions use their type as action_type.
+        Custom actions use "custom" as action_type with a user-provided label.
+        """
+        from app.models.case_action import CaseAction, PredefinedAction
+        from app.repositories.case_action_repository import CaseActionRepository
+
+        action_repo = CaseActionRepository()
+
+        # Remove existing actions
+        action_repo.delete_by_case_id(case_id)
+
+        # Create new actions
+        created = []
+        for action_data in actions:
+            action_type = action_data.get("action_type", "custom")
+            label = action_data.get("label", "")
+            completed = action_data.get("completed", False)
+
+            if not label:
+                # Use predefined label if available
+                label = PredefinedAction.LABELS.get(action_type, action_type)
+
+            action = action_repo.create(
+                case_id=case_id,
+                action_type=action_type,
+                label=label,
+                completed=completed,
+            )
+            created.append(action)
+
+        # Audit
+        self.audit_service.log_update(
+            case_id=case_id,
+            user_id=user_id,
+            field_name="actions",
+            old_value=None,
+            new_value=f"Updated actions ({len(created)} items)",
+        )
+
+        return created
+
+    def delete_case(self, case: Case, user_id: Optional[int] = None) -> None:
         """Delete a case and clean up associated files."""
+        if user_id:
+            self.audit_service.log_delete(
+                case_id=case.id,
+                user_id=user_id,
+                field_name="case",
+                old_value=f"Deleted case {case.identifier}",
+            )
+
         if case.voice_note_path:
             file_path = os.path.join(
                 current_app.config["UPLOAD_FOLDER"], case.voice_note_path

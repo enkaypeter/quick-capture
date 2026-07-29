@@ -37,6 +37,9 @@ class Case(db.Model):
         default=CaseCategory.NON_CASELOAD,
     )
 
+    # National Insurance number (required when category is "client")
+    ni_number = db.Column(db.String(20), nullable=True)
+
     # Metadata
     created_at = db.Column(db.DateTime(timezone=True), default=func.now())
     updated_at = db.Column(
@@ -49,6 +52,11 @@ class Case(db.Model):
     # Relationship to case notes
     notes = db.relationship(
         "CaseNote", backref="case", lazy="dynamic", cascade="all, delete-orphan"
+    )
+
+    # Relationship to case actions (caseload category)
+    actions = db.relationship(
+        "CaseAction", backref="case", lazy="dynamic", cascade="all, delete-orphan"
     )
 
     def __repr__(self):

@@ -14,29 +14,60 @@
             <h1 class="text-2xl font-bold">{{ case.full_name or case.identifier }}</h1>
             <p class="text-sm text-gray-500 mt-0.5">{{ case.identifier }}</p>
         </div>
-        <span class="inline-flex items-center rounded-full px-2.5 py-1 text-xs font-medium
-            {% if case.category == 'client' %}bg-green-100 text-green-700
-            {% elif case.category == 'caseload' %}bg-blue-100 text-blue-700
-            {% else %}bg-gray-100 text-gray-600{% endif %}">
-            {{ case.category }}
-        </span>
+        <select
+            id="category-select"
+            class="rounded-full px-3 py-1 text-xs font-medium border-0 cursor-pointer focus:ring-2 focus:ring-brand-500
+                {% if case.category == 'client' %}bg-green-100 text-green-700
+                {% elif case.category == 'caseload' %}bg-blue-100 text-blue-700
+                {% else %}bg-gray-100 text-gray-600{% endif %}"
+        >
+            <option value="non-caseload" {% if case.category == 'non-caseload' %}selected{% endif %} {% if case.category in ['caseload', 'client'] %}disabled{% endif %}>non-caseload</option>
+            <option value="caseload" {% if case.category == 'caseload' %}selected{% endif %} {% if case.category == 'client' %}disabled{% endif %}>caseload</option>
+            <option value="client" {% if case.category == 'client' %}selected{% endif %}>client</option>
+        </select>
     </div>
 
     <!-- Case Info -->
     <div class="space-y-4 rounded-lg border border-gray-200 bg-white p-5 mb-6">
-        {% if case.full_name %}
+        <!-- Name (editable) -->
         <div>
             <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Name</dt>
-            <dd class="mt-0.5 text-sm text-gray-900">{{ case.full_name }}</dd>
+            <dd class="mt-0.5">
+                <div class="editable-field group" data-field="full_name">
+                    <span class="editable-display text-sm text-gray-900 cursor-pointer group-hover:text-brand-600 inline-flex items-center gap-1">
+                        {{ case.full_name or '—' }}
+                        <svg class="w-3 h-3 text-gray-400 group-hover:text-brand-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                    </span>
+                    <div class="editable-input hidden">
+                        <input type="text" value="{{ case.full_name or '' }}" class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        <div class="flex gap-1 mt-1">
+                            <button type="button" class="save-btn text-xs text-brand-600 font-medium hover:text-brand-700">Save</button>
+                            <button type="button" class="cancel-btn text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </dd>
         </div>
-        {% endif %}
 
-        {% if case.phone_number %}
+        <!-- Phone (editable) -->
         <div>
             <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Phone</dt>
-            <dd class="mt-0.5 text-sm text-gray-900">{{ case.phone_number }}</dd>
+            <dd class="mt-0.5">
+                <div class="editable-field group" data-field="phone_number">
+                    <span class="editable-display text-sm text-gray-900 cursor-pointer group-hover:text-brand-600 inline-flex items-center gap-1">
+                        {{ case.phone_number or '—' }}
+                        <svg class="w-3 h-3 text-gray-400 group-hover:text-brand-500 opacity-0 group-hover:opacity-100 transition-opacity" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>
+                    </span>
+                    <div class="editable-input hidden">
+                        <input type="tel" value="{{ case.phone_number or '' }}" class="w-full rounded border border-gray-300 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                        <div class="flex gap-1 mt-1">
+                            <button type="button" class="save-btn text-xs text-brand-600 font-medium hover:text-brand-700">Save</button>
+                            <button type="button" class="cancel-btn text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                        </div>
+                    </div>
+                </div>
+            </dd>
         </div>
-        {% endif %}
 
         {% if case.location_w3w %}
         <div>
@@ -64,8 +95,34 @@
 
         <div>
             <dt class="text-xs font-medium text-gray-500 uppercase tracking-wide">Created</dt>
-            <dd class="mt-0.5 text-sm text-gray-900">{{ case.created_at.strftime('%d %B %Y at %H:%M') }}</dd>
+            <dd class="mt-0.5 text-sm text-gray-900"><time class="local-time" datetime="{{ case.created_at.isoformat() }}Z">{{ case.created_at.strftime('%d %B %Y at %H:%M') }} UTC</time></dd>
         </div>
+    </div>
+
+    <!-- Actions checklist (shown for caseload and client) -->
+    <div id="caseload-section" class="{% if case.category not in ['caseload', 'client'] %}hidden{% endif %} rounded-lg border border-blue-200 bg-blue-50 p-4 mb-6">
+        <h3 class="text-sm font-semibold text-blue-800 mb-3">Actions</h3>
+        <div id="actions-list" class="space-y-2">
+            <!-- Populated by JS -->
+        </div>
+        <div class="mt-3 flex gap-2">
+            <input type="text" id="custom-action-input" placeholder="Other action..." class="flex-1 rounded border border-blue-200 px-2 py-1 text-sm focus:outline-none focus:ring-2 focus:ring-blue-400" />
+            <button type="button" id="add-custom-action-btn" class="rounded bg-blue-600 px-3 py-1 text-xs font-medium text-white hover:bg-blue-700">Add</button>
+        </div>
+        <button type="button" id="save-actions-btn" class="mt-3 rounded-lg bg-blue-600 px-4 py-1.5 text-xs font-medium text-white hover:bg-blue-700">
+            Save Actions
+        </button>
+    </div>
+
+    <!-- Client: NI Number (below actions) -->
+    <div id="client-section" class="{% if case.category != 'client' %}hidden{% endif %} rounded-lg border border-green-200 bg-green-50 p-4 mb-6">
+        <h3 class="text-sm font-semibold text-green-800 mb-2">National Insurance Number</h3>
+        <p class="text-xs text-green-700 mb-2">Required for client cases. This is used as the primary personal identifier.</p>
+        <div class="flex gap-2">
+            <input type="text" id="ni-number-input" value="{{ case.ni_number or '' }}" placeholder="e.g. QQ 12 34 56 C" class="flex-1 rounded border border-green-200 px-2 py-1.5 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-green-400" />
+            <button type="button" id="save-ni-btn" class="rounded bg-green-600 px-3 py-1.5 text-xs font-medium text-white hover:bg-green-700">Save</button>
+        </div>
+        <p id="ni-status" class="mt-1 text-xs hidden"></p>
     </div>
 
     <!-- Notes Section -->
@@ -80,36 +137,50 @@
             {% for note in notes %}
             <div class="rounded-lg border border-gray-200 bg-white p-4 {% if note.needs_review %}border-l-4 border-l-amber-400{% endif %}">
                 <!-- Note header -->
-                <div class="flex items-center justify-between mb-2">
-                    <div class="flex items-center gap-2">
-                        {% if note.source == 'transcription' %}
-                        <span class="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
-                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
-                            Transcribed
-                        </span>
-                        {% else %}
-                        <span class="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600">
-                            Manual
-                        </span>
-                        {% endif %}
+                <div class="flex flex-wrap items-center gap-2 mb-2">
+                    {% if note.source == 'transcription' %}
+                    <span class="inline-flex items-center gap-1 rounded-full bg-purple-50 px-2 py-0.5 text-xs font-medium text-purple-700">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+                        Transcribed
+                    </span>
+                    {% else %}
+                    <span class="inline-flex items-center rounded-full bg-gray-50 px-2 py-0.5 text-xs font-medium text-gray-600">
+                        Manual
+                    </span>
+                    {% endif %}
 
-                        {% if note.needs_review %}
-                        <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700" id="review-badge-{{ note.id }}">
-                            <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
-                            Needs review
-                        </span>
-                        {% endif %}
-                    </div>
-                    <span class="text-xs text-gray-400">{{ note.created_at.strftime('%d %b %Y %H:%M') }}</span>
+                    {% if note.needs_review %}
+                    <span class="inline-flex items-center gap-1 rounded-full bg-amber-50 px-2 py-0.5 text-xs font-medium text-amber-700" id="review-badge-{{ note.id }}">
+                        <svg class="w-3 h-3" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>
+                        Review
+                    </span>
+                    {% endif %}
+
+                    <span class="text-xs text-gray-400 ml-auto"><time class="local-time-short" datetime="{{ note.created_at.isoformat() }}Z">{{ note.created_at.strftime('%d %b %Y %H:%M') }} UTC</time></span>
                 </div>
 
                 <!-- Note content -->
-                <div class="text-sm text-gray-900 prose prose-sm max-w-none">
+                <div class="text-sm text-gray-900 prose prose-sm max-w-none" id="note-content-{{ note.id }}">
                     {{ note.content|safe }}
+                </div>
+                <div class="hidden" id="note-edit-{{ note.id }}">
+                    <div id="note-editor-{{ note.id }}" class="bg-white mb-2"></div>
+                    <div class="flex gap-1">
+                        <button type="button" onclick="saveNoteEdit({{ case.id }}, {{ note.id }})" class="text-xs text-brand-600 font-medium hover:text-brand-700">Save</button>
+                        <button type="button" onclick="cancelNoteEdit({{ note.id }})" class="text-xs text-gray-500 hover:text-gray-700">Cancel</button>
+                    </div>
                 </div>
 
                 <!-- Note actions -->
                 <div class="flex items-center gap-2 mt-3 pt-2 border-t border-gray-100">
+                    <button
+                        type="button"
+                        onclick="startNoteEdit({{ note.id }})"
+                        class="text-xs text-brand-600 hover:text-brand-700 font-medium"
+                        id="edit-note-btn-{{ note.id }}"
+                    >
+                        Edit
+                    </button>
                     {% if note.needs_review %}
                     <button
                         type="button"
@@ -134,9 +205,46 @@
     <!-- Add Note Form -->
     <div class="rounded-lg border border-gray-200 bg-white p-4 mb-6">
         <h3 class="text-sm font-semibold text-gray-800 mb-2">Add a note</h3>
-        <form method="POST" action="{{ url_for('cases.add_note', case_id=case.id) }}" id="add-note-form">
+        <form method="POST" action="{{ url_for('cases.add_note', case_id=case.id) }}" id="add-note-form" enctype="multipart/form-data">
             <div id="note-editor" class="bg-white mb-3"></div>
             <input type="hidden" id="note-content" name="content" />
+            <input type="hidden" id="add-note-transcript" name="voice_transcript" />
+
+            <!-- Voice Recorder -->
+            <div class="border border-gray-100 rounded-lg p-3 mb-3">
+                <div class="flex items-center gap-2 mb-2">
+                    <span class="text-xs font-medium text-gray-600">Voice note</span>
+                    <span class="text-xs text-gray-400">(optional)</span>
+                </div>
+                <div id="add-note-voice-controls">
+                    <button
+                        type="button"
+                        id="add-note-record-btn"
+                        class="inline-flex items-center gap-2 rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                    >
+                        <svg class="w-3.5 h-3.5 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg>
+                        Record
+                    </button>
+                </div>
+                <div id="add-note-playback" class="hidden mt-2">
+                    <audio id="add-note-audio" controls class="w-full"></audio>
+                </div>
+                <div id="add-note-transcription" class="hidden mt-2">
+                    <div id="add-note-transcribing" class="hidden flex items-center gap-2 text-xs text-gray-500">
+                        <svg class="w-3.5 h-3.5 animate-spin" fill="none" viewBox="0 0 24 24"><circle class="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" stroke-width="4"></circle><path class="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v4a4 4 0 00-4 4H4z"></path></svg>
+                        Transcribing...
+                    </div>
+                    <div id="add-note-transcript-result" class="hidden">
+                        <div class="flex items-center justify-between mb-1">
+                            <span class="text-xs font-medium text-purple-700">Transcript</span>
+                            <button type="button" id="add-note-copy-btn" class="text-xs font-medium text-brand-600 hover:text-brand-700">Copy to notes</button>
+                        </div>
+                        <p id="add-note-transcript-text" class="text-xs text-gray-700 bg-gray-50 rounded p-2 border border-gray-100"></p>
+                    </div>
+                    <div id="add-note-transcript-error" class="hidden text-xs text-red-600"></div>
+                </div>
+            </div>
+
             <button type="submit" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors">
                 Add Note
             </button>
@@ -144,12 +252,27 @@
     </div>
 
     <!-- Danger Zone -->
-    <div class="border-t border-gray-200 pt-6">
+    <div class="border-t border-gray-200 pt-6 mb-6">
         <form method="POST" action="{{ url_for('cases.delete_case', case_id=case.id) }}" onsubmit="return confirm('Are you sure you want to delete this case? All notes will be permanently removed.')">
             <button type="submit" class="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50 transition-colors">
                 Delete Case
             </button>
         </form>
+    </div>
+
+    <!-- Audit Trail -->
+    <div class="border-t border-gray-200 pt-6">
+        <div class="flex items-center justify-between mb-3">
+            <h2 class="text-lg font-semibold">Activity</h2>
+            <button type="button" id="toggle-audit-btn" class="text-xs font-medium text-brand-600 hover:text-brand-700">
+                Show history
+            </button>
+        </div>
+        <div id="audit-trail" class="hidden">
+            <div id="audit-loading" class="text-sm text-gray-500 py-4 text-center">Loading...</div>
+            <ul id="audit-entries" class="space-y-2 hidden"></ul>
+            <p id="audit-empty" class="hidden text-sm text-gray-500 py-4 text-center">No activity recorded yet.</p>
+        </div>
     </div>
 </div>
 {% endblock %}
@@ -173,7 +296,247 @@
         document.getElementById('add-note-form').addEventListener('submit', function() {
             document.getElementById('note-content').value = noteQuill.root.innerHTML;
         });
+
+        // ─── Voice Recorder for Add Note ───────────────────────────────
+        var addNoteRecordBtn = document.getElementById('add-note-record-btn');
+        var addNotePlayback = document.getElementById('add-note-playback');
+        var addNoteAudio = document.getElementById('add-note-audio');
+        var addNoteTranscription = document.getElementById('add-note-transcription');
+        var addNoteTranscribing = document.getElementById('add-note-transcribing');
+        var addNoteTranscriptResult = document.getElementById('add-note-transcript-result');
+        var addNoteTranscriptText = document.getElementById('add-note-transcript-text');
+        var addNoteTranscriptError = document.getElementById('add-note-transcript-error');
+        var addNoteCopyBtn = document.getElementById('add-note-copy-btn');
+        var addNoteTranscriptInput = document.getElementById('add-note-transcript');
+
+        var addNoteRecorder = null;
+        var addNoteChunks = [];
+        var addNoteIsRecording = false;
+
+        if (addNoteRecordBtn) {
+            addNoteRecordBtn.addEventListener('click', function() {
+                if (!addNoteIsRecording) {
+                    startAddNoteRecording();
+                } else {
+                    stopAddNoteRecording();
+                }
+            });
+        }
+
+        function startAddNoteRecording() {
+            if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+                alert('Audio recording not supported in this browser.');
+                return;
+            }
+
+            navigator.mediaDevices.getUserMedia({ audio: true })
+                .then(function(stream) {
+                    addNoteRecorder = new MediaRecorder(stream);
+                    addNoteChunks = [];
+
+                    addNoteRecorder.addEventListener('dataavailable', function(e) {
+                        addNoteChunks.push(e.data);
+                    });
+
+                    addNoteRecorder.addEventListener('stop', function() {
+                        var blob = new Blob(addNoteChunks, { type: 'audio/webm' });
+                        var url = URL.createObjectURL(blob);
+                        addNoteAudio.src = url;
+                        addNotePlayback.classList.remove('hidden');
+                        stream.getTracks().forEach(function(t) { t.stop(); });
+                        transcribeAddNote(blob);
+                    });
+
+                    addNoteRecorder.start();
+                    addNoteIsRecording = true;
+                    addNoteRecordBtn.innerHTML =
+                        '<svg class="w-3.5 h-3.5 text-red-500 animate-pulse" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="6"/></svg> Stop';
+                    addNoteRecordBtn.classList.add('border-red-300', 'text-red-600');
+                    addNoteRecordBtn.classList.remove('border-gray-300', 'text-gray-700');
+                })
+                .catch(function(err) {
+                    alert('Could not access microphone: ' + err.message);
+                });
+        }
+
+        function stopAddNoteRecording() {
+            if (addNoteRecorder && addNoteRecorder.state !== 'inactive') {
+                addNoteRecorder.stop();
+            }
+            addNoteIsRecording = false;
+            addNoteRecordBtn.innerHTML =
+                '<svg class="w-3.5 h-3.5 text-gray-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M7 4a3 3 0 016 0v4a3 3 0 11-6 0V4zm4 10.93A7.001 7.001 0 0017 8a1 1 0 10-2 0A5 5 0 015 8a1 1 0 00-2 0 7.001 7.001 0 006 6.93V17H6a1 1 0 100 2h8a1 1 0 100-2h-3v-2.07z" clip-rule="evenodd"/></svg> Re-record';
+            addNoteRecordBtn.classList.remove('border-red-300', 'text-red-600');
+            addNoteRecordBtn.classList.add('border-gray-300', 'text-gray-700');
+        }
+
+        function transcribeAddNote(blob) {
+            addNoteTranscription.classList.remove('hidden');
+            addNoteTranscribing.classList.remove('hidden');
+            addNoteTranscriptResult.classList.add('hidden');
+            addNoteTranscriptError.classList.add('hidden');
+
+            var formData = new FormData();
+            formData.append('audio', blob, 'voice_note.webm');
+
+            fetch('/transcribe', { method: 'POST', body: formData })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    addNoteTranscribing.classList.add('hidden');
+                    if (data.text) {
+                        addNoteTranscriptText.textContent = data.text;
+                        addNoteTranscriptResult.classList.remove('hidden');
+                        addNoteTranscriptInput.value = data.text;
+                    } else {
+                        addNoteTranscriptError.textContent = data.error || 'Transcription unavailable.';
+                        addNoteTranscriptError.classList.remove('hidden');
+                    }
+                })
+                .catch(function() {
+                    addNoteTranscribing.classList.add('hidden');
+                    addNoteTranscriptError.textContent = 'Could not reach transcription service.';
+                    addNoteTranscriptError.classList.remove('hidden');
+                });
+        }
+
+        // Copy transcript to Quill editor
+        if (addNoteCopyBtn) {
+            addNoteCopyBtn.addEventListener('click', function() {
+                var text = addNoteTranscriptText.textContent;
+                if (text) {
+                    var length = noteQuill.getLength();
+                    if (length > 1) {
+                        noteQuill.insertText(length - 1, '\n' + text);
+                    } else {
+                        noteQuill.setText(text);
+                    }
+                }
+            });
+        }
     });
+
+    // ─── Inline Editing: Case Fields ───────────────────────────────────
+    (function() {
+        var caseId = {{ case.id }};
+
+        document.querySelectorAll('.editable-field').forEach(function(field) {
+            var display = field.querySelector('.editable-display');
+            var inputWrapper = field.querySelector('.editable-input');
+            var input = inputWrapper.querySelector('input');
+            var saveBtn = inputWrapper.querySelector('.save-btn');
+            var cancelBtn = inputWrapper.querySelector('.cancel-btn');
+            var fieldName = field.dataset.field;
+
+            display.addEventListener('click', function() {
+                display.classList.add('hidden');
+                inputWrapper.classList.remove('hidden');
+                input.focus();
+            });
+
+            cancelBtn.addEventListener('click', function() {
+                inputWrapper.classList.add('hidden');
+                display.classList.remove('hidden');
+                // Reset input to current display value
+                input.value = display.textContent.trim() === '—' ? '' : display.textContent.trim().replace(/\s+/g, ' ');
+            });
+
+            saveBtn.addEventListener('click', function() {
+                var payload = {};
+                payload[fieldName] = input.value.trim();
+
+                fetch('/cases/' + caseId + '/edit', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(payload)
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        var newVal = data[fieldName] || '—';
+                        // Update display text (keep the pencil icon)
+                        display.childNodes[0].textContent = newVal + ' ';
+                        inputWrapper.classList.add('hidden');
+                        display.classList.remove('hidden');
+                    } else {
+                        alert(data.error || 'Failed to update.');
+                    }
+                })
+                .catch(function() {
+                    alert('Network error.');
+                });
+            });
+
+            // Save on Enter key
+            input.addEventListener('keydown', function(e) {
+                if (e.key === 'Enter') { e.preventDefault(); saveBtn.click(); }
+                if (e.key === 'Escape') { cancelBtn.click(); }
+            });
+        });
+    })();
+
+    // ─── Inline Editing: Notes ─────────────────────────────────────────
+    var noteEditors = {};
+
+    function startNoteEdit(noteId) {
+        var contentDiv = document.getElementById('note-content-' + noteId);
+        var editDiv = document.getElementById('note-edit-' + noteId);
+        var editBtn = document.getElementById('edit-note-btn-' + noteId);
+
+        contentDiv.classList.add('hidden');
+        editDiv.classList.remove('hidden');
+        editBtn.classList.add('hidden');
+
+        if (!noteEditors[noteId]) {
+            noteEditors[noteId] = new Quill('#note-editor-' + noteId, {
+                theme: 'snow',
+                modules: {
+                    toolbar: [
+                        ['bold', 'italic', 'underline'],
+                        [{ 'list': 'ordered'}, { 'list': 'bullet' }],
+                        ['clean']
+                    ]
+                }
+            });
+        }
+        // Load current content into editor
+        noteEditors[noteId].root.innerHTML = contentDiv.innerHTML;
+    }
+
+    function cancelNoteEdit(noteId) {
+        var contentDiv = document.getElementById('note-content-' + noteId);
+        var editDiv = document.getElementById('note-edit-' + noteId);
+        var editBtn = document.getElementById('edit-note-btn-' + noteId);
+
+        editDiv.classList.add('hidden');
+        contentDiv.classList.remove('hidden');
+        editBtn.classList.remove('hidden');
+    }
+
+    function saveNoteEdit(caseId, noteId) {
+        var editor = noteEditors[noteId];
+        if (!editor) return;
+
+        var content = editor.root.innerHTML;
+
+        fetch('/cases/' + caseId + '/notes/' + noteId + '/edit', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ content: content })
+        })
+        .then(function(r) { return r.json(); })
+        .then(function(data) {
+            if (data.success) {
+                var contentDiv = document.getElementById('note-content-' + noteId);
+                contentDiv.innerHTML = data.content;
+                cancelNoteEdit(noteId);
+            } else {
+                alert(data.error || 'Failed to save.');
+            }
+        })
+        .catch(function() {
+            alert('Network error.');
+        });
+    }
 
     function markReviewed(caseId, noteId) {
         fetch('/cases/' + caseId + '/notes/' + noteId + '/review', {
@@ -190,5 +553,380 @@
             }
         });
     }
+
+    // ─── Category Toggle + Contextual Fields ─────────────────────────
+    (function() {
+        var caseId = {{ case.id }};
+        var categorySelect = document.getElementById('category-select');
+        var caseloadSection = document.getElementById('caseload-section');
+        var clientSection = document.getElementById('client-section');
+        var actionsList = document.getElementById('actions-list');
+        var customActionInput = document.getElementById('custom-action-input');
+        var addCustomBtn = document.getElementById('add-custom-action-btn');
+        var saveActionsBtn = document.getElementById('save-actions-btn');
+        var niInput = document.getElementById('ni-number-input');
+        var saveNiBtn = document.getElementById('save-ni-btn');
+        var niStatus = document.getElementById('ni-status');
+
+        var predefinedActions = [
+            { type: 'home_visit', label: 'Home visit' },
+            { type: 'referral_gp', label: 'Referral to GP' },
+            { type: 'benefits_application', label: 'Benefits application' },
+            { type: 'housing_referral', label: 'Housing referral' },
+            { type: 'mental_health_referral', label: 'Mental health referral' },
+            { type: 'substance_support', label: 'Substance misuse support' },
+            { type: 'food_bank_referral', label: 'Food bank referral' },
+            { type: 'appointment_booked', label: 'Appointment booked' }
+        ];
+
+        var currentActions = [];
+
+        // Category change handler
+        categorySelect.addEventListener('change', function() {
+            var category = categorySelect.value;
+
+            // Show/hide contextual sections
+            caseloadSection.classList.toggle('hidden', category !== 'caseload' && category !== 'client');
+            clientSection.classList.toggle('hidden', category !== 'client');
+
+            // Update styling
+            categorySelect.className = categorySelect.className
+                .replace(/bg-\w+-100/g, '')
+                .replace(/text-\w+-\d+/g, '');
+
+            if (category === 'client') {
+                categorySelect.classList.add('bg-green-100', 'text-green-700');
+                loadActions();
+            } else if (category === 'caseload') {
+                categorySelect.classList.add('bg-blue-100', 'text-blue-700');
+                loadActions();
+            } else {
+                categorySelect.classList.add('bg-gray-100', 'text-gray-600');
+            }
+
+            // If switching to client, require NI before saving
+            if (category === 'client') {
+                if (!niInput.value.trim()) {
+                    showNiStatus('Please enter a National Insurance number to save.', true);
+                    return;
+                }
+            }
+
+            // Save category (with NI if client)
+            var payload = { category: category };
+            if (category === 'client') {
+                payload.ni_number = niInput.value.trim();
+            }
+
+            fetch('/cases/' + caseId + '/category', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify(payload)
+            })
+            .then(function(r) { return r.json(); })
+            .then(function(data) {
+                if (!data.success) {
+                    alert(data.error || 'Failed to update category.');
+                    window.location.reload();
+                }
+            });
+        });
+
+        // NI Number save
+        if (saveNiBtn) {
+            saveNiBtn.addEventListener('click', function() {
+                var ni = niInput.value.trim();
+                if (!ni) {
+                    showNiStatus('NI number is required.', true);
+                    return;
+                }
+
+                fetch('/cases/' + caseId + '/ni-number', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ ni_number: ni })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        showNiStatus('Saved.', false);
+                    } else {
+                        showNiStatus(data.error || 'Failed to save.', true);
+                    }
+                });
+            });
+        }
+
+        function showNiStatus(msg, isError) {
+            niStatus.textContent = msg;
+            niStatus.classList.remove('hidden', 'text-red-600', 'text-green-600');
+            niStatus.classList.add(isError ? 'text-red-600' : 'text-green-600');
+            setTimeout(function() { niStatus.classList.add('hidden'); }, 3000);
+        }
+
+        // Actions management
+        function loadActions() {
+            fetch('/cases/' + caseId + '/actions')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    currentActions = data.actions || [];
+                    renderActions();
+                });
+        }
+
+        function renderActions() {
+            actionsList.innerHTML = '';
+
+            // Render predefined actions
+            predefinedActions.forEach(function(pa) {
+                var existing = currentActions.find(function(a) { return a.action_type === pa.type; });
+                var checked = existing ? existing.completed : false;
+                var inList = !!existing;
+                addActionCheckbox(pa.type, pa.label, checked, inList);
+            });
+
+            // Render custom actions
+            currentActions.forEach(function(a) {
+                if (a.action_type === 'custom') {
+                    addActionCheckbox('custom', a.label, a.completed, true);
+                }
+            });
+        }
+
+        function addActionCheckbox(type, label, completed, inList) {
+            var div = document.createElement('div');
+            div.className = 'flex items-center gap-2';
+            div.innerHTML =
+                '<input type="checkbox" class="action-checkbox rounded border-blue-300 text-blue-600 focus:ring-blue-500" data-type="' + type + '" data-label="' + escapeAttr(label) + '" ' + (completed ? 'checked' : '') + ' />' +
+                '<span class="text-sm text-blue-900">' + escapeHtml(label) + '</span>' +
+                (type === 'custom' ? '<button type="button" class="remove-action-btn text-xs text-red-500 hover:text-red-700 ml-auto">Remove</button>' : '');
+            actionsList.appendChild(div);
+
+            if (type === 'custom') {
+                div.querySelector('.remove-action-btn').addEventListener('click', function() {
+                    div.remove();
+                });
+            }
+        }
+
+        // Add custom action
+        if (addCustomBtn) {
+            addCustomBtn.addEventListener('click', function() {
+                var label = customActionInput.value.trim();
+                if (!label) return;
+                addActionCheckbox('custom', label, false, true);
+                customActionInput.value = '';
+            });
+        }
+
+        // Save actions
+        if (saveActionsBtn) {
+            saveActionsBtn.addEventListener('click', function() {
+                var actions = [];
+                actionsList.querySelectorAll('.action-checkbox').forEach(function(cb) {
+                    if (cb.checked || cb.dataset.type === 'custom') {
+                        actions.push({
+                            action_type: cb.dataset.type,
+                            label: cb.dataset.label,
+                            completed: cb.checked,
+                        });
+                    } else if (cb.checked) {
+                        actions.push({
+                            action_type: cb.dataset.type,
+                            label: cb.dataset.label,
+                            completed: true,
+                        });
+                    }
+                });
+
+                // Include all checked items
+                actions = [];
+                actionsList.querySelectorAll('.action-checkbox:checked').forEach(function(cb) {
+                    actions.push({
+                        action_type: cb.dataset.type,
+                        label: cb.dataset.label,
+                        completed: true,
+                    });
+                });
+
+                fetch('/cases/' + caseId + '/actions', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ actions: actions })
+                })
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (data.success) {
+                        currentActions = data.actions;
+                        saveActionsBtn.textContent = 'Saved!';
+                        setTimeout(function() { saveActionsBtn.textContent = 'Save Actions'; }, 2000);
+                    }
+                });
+            });
+        }
+
+        // Load actions if already on caseload or client
+        if ('{{ case.category }}' === 'caseload' || '{{ case.category }}' === 'client') {
+            loadActions();
+        }
+
+        function escapeHtml(text) {
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        }
+
+        function escapeAttr(text) {
+            return text.replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+        }
+    })();
+
+    // ─── Audit Trail ───────────────────────────────────────────────────
+    (function() {
+        var toggleBtn = document.getElementById('toggle-audit-btn');
+        var auditSection = document.getElementById('audit-trail');
+        var auditLoading = document.getElementById('audit-loading');
+        var auditEntries = document.getElementById('audit-entries');
+        var auditEmpty = document.getElementById('audit-empty');
+        var loaded = false;
+        var latestEntryId = 0;
+        var pollInterval = null;
+        var POLL_DELAY = 5000;
+
+        if (toggleBtn) {
+            toggleBtn.addEventListener('click', function() {
+                var isHidden = auditSection.classList.contains('hidden');
+                if (isHidden) {
+                    auditSection.classList.remove('hidden');
+                    toggleBtn.textContent = 'Hide history';
+                    if (!loaded) {
+                        loadAuditTrail();
+                        loaded = true;
+                    }
+                    startPolling();
+                } else {
+                    auditSection.classList.add('hidden');
+                    toggleBtn.textContent = 'Show history';
+                    stopPolling();
+                }
+            });
+        }
+
+        function startPolling() {
+            stopPolling();
+            pollInterval = setInterval(pollForUpdates, POLL_DELAY);
+        }
+
+        function stopPolling() {
+            if (pollInterval) {
+                clearInterval(pollInterval);
+                pollInterval = null;
+            }
+        }
+
+        function pollForUpdates() {
+            fetch('/cases/{{ case.id }}/audit')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    if (!data.entries || data.entries.length === 0) return;
+
+                    // Find entries newer than what we've already rendered
+                    var newEntries = data.entries.filter(function(e) {
+                        return e.id > latestEntryId;
+                    });
+
+                    if (newEntries.length > 0) {
+                        auditEmpty.classList.add('hidden');
+                        auditEntries.classList.remove('hidden');
+
+                        // Prepend new entries (they come in desc order, so reverse to insert oldest first)
+                        newEntries.reverse().forEach(function(entry) {
+                            var li = createAuditEntryElement(entry);
+                            li.style.opacity = '0';
+                            auditEntries.insertBefore(li, auditEntries.firstChild);
+                            // Animate in
+                            requestAnimationFrame(function() {
+                                li.style.transition = 'opacity 0.3s ease-in';
+                                li.style.opacity = '1';
+                            });
+                        });
+
+                        // Update latest ID
+                        latestEntryId = Math.max.apply(null, newEntries.map(function(e) { return e.id; }));
+                    }
+                });
+        }
+
+        function loadAuditTrail() {
+            fetch('/cases/{{ case.id }}/audit')
+                .then(function(r) { return r.json(); })
+                .then(function(data) {
+                    auditLoading.classList.add('hidden');
+                    if (data.entries && data.entries.length > 0) {
+                        auditEntries.classList.remove('hidden');
+                        data.entries.forEach(function(entry) {
+                            auditEntries.appendChild(createAuditEntryElement(entry));
+                        });
+                        // Track latest entry ID for polling
+                        latestEntryId = data.entries[0].id;
+                    } else {
+                        auditEmpty.classList.remove('hidden');
+                    }
+                })
+                .catch(function() {
+                    auditLoading.textContent = 'Failed to load activity.';
+                });
+        }
+
+        function createAuditEntryElement(entry) {
+            var li = document.createElement('li');
+            li.className = 'flex items-start gap-3 text-sm py-2 border-b border-gray-100 last:border-0';
+
+            var icon = getActionIcon(entry.action);
+            var description = formatAuditEntry(entry);
+            var time = entry.timestamp ? new Date(entry.timestamp).toLocaleString('en-GB', { day: '2-digit', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' }) : '';
+
+            li.innerHTML =
+                '<div class="flex-shrink-0 mt-0.5">' + icon + '</div>' +
+                '<div class="flex-1 min-w-0">' +
+                    '<p class="text-gray-900">' + description + '</p>' +
+                    '<p class="text-xs text-gray-400 mt-0.5">' + escapeHtml(entry.user) + ' &middot; ' + time + '</p>' +
+                '</div>';
+
+            return li;
+        }
+
+        function getActionIcon(action) {
+            if (action === 'created') return '<svg class="w-4 h-4 text-green-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm1-11a1 1 0 10-2 0v2H7a1 1 0 100 2h2v2a1 1 0 102 0v-2h2a1 1 0 100-2h-2V7z" clip-rule="evenodd"/></svg>';
+            if (action === 'updated') return '<svg class="w-4 h-4 text-blue-500" fill="currentColor" viewBox="0 0 20 20"><path d="M13.586 3.586a2 2 0 112.828 2.828l-.793.793-2.828-2.828.793-.793zM11.379 5.793L3 14.172V17h2.828l8.38-8.379-2.83-2.828z"/></svg>';
+            if (action === 'deleted') return '<svg class="w-4 h-4 text-red-500" fill="currentColor" viewBox="0 0 20 20"><path fill-rule="evenodd" d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z" clip-rule="evenodd"/></svg>';
+            return '<svg class="w-4 h-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20"><circle cx="10" cy="10" r="3"/></svg>';
+        }
+
+        function formatAuditEntry(entry) {
+            var field = escapeHtml(entry.field_name);
+            if (entry.action === 'created') {
+                return entry.new_value ? escapeHtml(entry.new_value) : 'Created <strong>' + field + '</strong>';
+            }
+            if (entry.action === 'updated') {
+                var parts = 'Updated <strong>' + field + '</strong>';
+                if (entry.old_value && entry.new_value) {
+                    parts += ' from "' + escapeHtml(entry.old_value) + '" to "' + escapeHtml(entry.new_value) + '"';
+                }
+                return parts;
+            }
+            if (entry.action === 'deleted') {
+                return entry.old_value ? escapeHtml(entry.old_value) : 'Deleted <strong>' + field + '</strong>';
+            }
+            return field;
+        }
+
+        function escapeHtml(text) {
+            if (!text) return '';
+            var div = document.createElement('div');
+            div.appendChild(document.createTextNode(text));
+            return div.innerHTML;
+        }
+    })();
 </script>
 {% endblock %}

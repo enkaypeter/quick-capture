@@ -128,6 +128,43 @@
                 });
             }
         })();
+
+        // Local timezone conversion for <time> elements
+        (function() {
+            // Full date + time: "29 July 2026 at 14:30"
+            document.querySelectorAll('time.local-time').forEach(function(el) {
+                var dt = new Date(el.getAttribute('datetime'));
+                if (!isNaN(dt)) {
+                    el.textContent = dt.toLocaleDateString('en-GB', {
+                        day: '2-digit', month: 'long', year: 'numeric'
+                    }) + ' at ' + dt.toLocaleTimeString('en-GB', {
+                        hour: '2-digit', minute: '2-digit'
+                    });
+                }
+            });
+
+            // Short date + time: "29 Jul 2026 14:30"
+            document.querySelectorAll('time.local-time-short').forEach(function(el) {
+                var dt = new Date(el.getAttribute('datetime'));
+                if (!isNaN(dt)) {
+                    el.textContent = dt.toLocaleDateString('en-GB', {
+                        day: '2-digit', month: 'short', year: 'numeric'
+                    }) + ' ' + dt.toLocaleTimeString('en-GB', {
+                        hour: '2-digit', minute: '2-digit'
+                    });
+                }
+            });
+
+            // Date only: "29 Jul 2026"
+            document.querySelectorAll('time.local-date').forEach(function(el) {
+                var dt = new Date(el.getAttribute('datetime'));
+                if (!isNaN(dt)) {
+                    el.textContent = dt.toLocaleDateString('en-GB', {
+                        day: '2-digit', month: 'short', year: 'numeric'
+                    });
+                }
+            });
+        })();
     </script>
     {% block scripts %}{% endblock %}
 </body>

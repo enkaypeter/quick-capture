@@ -32,7 +32,7 @@
                 </p>
             </div>
             <span class="text-xs text-gray-400 whitespace-nowrap ml-3">
-                {{ case.created_at.strftime('%d %b %Y') }}
+                <time class="local-date" datetime="{{ case.created_at.isoformat() }}Z">{{ case.created_at.strftime('%d %b %Y') }}</time>
             </span>
         </div>
     </a>

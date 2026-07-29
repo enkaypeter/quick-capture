@@ -4,11 +4,8 @@ services:
     build: .
     ports:
       - "5001:5001"
-    environment:
-      - FLASK_ENV=production
-      - SECRET_KEY=${SECRET_KEY:-change-me-in-production}
-      - TRANSCRIPTION_URL=http://transcriber:8080
-      - W3W_API_KEY=${W3W_API_KEY:-}
+    env_file:
+      - .env.prod
     volumes:
       - db_data:/app/instance
       - uploads_data:/app/uploads

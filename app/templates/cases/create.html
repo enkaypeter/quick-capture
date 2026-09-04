@@ -3,13 +3,14 @@
 {% block content %}
 <div class="mx-auto max-w-lg">
     <h1 class="text-2xl font-bold mb-1">Create New Case</h1>
-    <p class="text-sm text-gray-500 mb-6">Enter the client details below to create a new case record.</p>
+    <p class="text-sm text-gray-500 mb-6">Add at least one identifying detail, note, or location.</p>
 
     <form method="POST" enctype="multipart/form-data" id="case-form" class="space-y-5">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <!-- Full name -->
         <div>
             <label for="full_name" class="block text-sm font-semibold text-gray-800 mb-1">
-                Full name or known name <span class="text-red-500">*</span>
+                Full name or known name
             </label>
             <input
                 type="text"
@@ -35,7 +36,7 @@
         <!-- Location -->
         <div>
             <label for="location_search" class="block text-sm font-semibold text-gray-800 mb-1">
-                Location <span class="text-red-500">*</span>
+                Location
             </label>
             <div class="relative">
                 <span class="absolute inset-y-0 left-0 flex items-center pl-3 text-gray-400 pointer-events-none">///</span>
@@ -63,9 +64,35 @@
             <p id="location-status" class="mt-1 text-xs text-gray-500 hidden"></p>
         </div>
 
-        <!-- Category -->
+        <details class="rounded-lg border border-gray-200 bg-white p-4">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-800">Identity & matching</summary>
+            <div class="mt-4 grid gap-4">
+                <div>
+                    <label for="date_of_birth" class="block text-sm font-medium text-gray-700 mb-1">Date of birth</label>
+                    <input type="date" id="date_of_birth" name="date_of_birth" data-age-target="age" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                    <label for="age" class="block text-sm font-medium text-gray-700 mb-1">Age</label>
+                    <input type="number" id="age" name="age" min="0" max="120" placeholder="Auto-filled from DOB" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                    <label for="gender" class="block text-sm font-medium text-gray-700 mb-1">Gender</label>
+                    <input type="text" id="gender" name="gender" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                    <label for="physical_description" class="block text-sm font-medium text-gray-700 mb-1">Physical description</label>
+                    <textarea id="physical_description" name="physical_description" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                </div>
+                <div>
+                    <label for="other_contact" class="block text-sm font-medium text-gray-700 mb-1">Other contact details</label>
+                    <input type="text" id="other_contact" name="other_contact" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+            </div>
+        </details>
+
+        <!-- Case status -->
         <div>
-            <label for="category" class="block text-sm font-semibold text-gray-800 mb-1">Category</label>
+            <label for="category" class="block text-sm font-semibold text-gray-800 mb-1">Case status</label>
             <select
                 id="category"
                 name="category"
@@ -75,13 +102,64 @@
                 <option value="caseload">Caseload</option>
                 <option value="client">Client</option>
             </select>
+            <dl class="mt-2 grid gap-1 text-xs text-gray-500">
+                <div><dt class="inline font-medium text-gray-600">Non-caseload:</dt> <dd class="inline">not currently on the active caseload.</dd></div>
+                <div><dt class="inline font-medium text-gray-600">Caseload:</dt> <dd class="inline">actively supported by the team.</dd></div>
+                <div><dt class="inline font-medium text-gray-600">Client:</dt> <dd class="inline">formal client record with fuller identity details.</dd></div>
+            </dl>
         </div>
 
-        <!-- Case Notes (WYSIWYG) -->
+        <details class="rounded-lg border border-gray-200 bg-white p-4">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-800">Consent, risk & reporting</summary>
+            <div class="mt-4 grid gap-4">
+                <div>
+                    <label for="consent_status" class="block text-sm font-medium text-gray-700 mb-1">Consent status</label>
+                    <select id="consent_status" name="consent_status" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="unknown">Unknown</option>
+                        <option value="given">Given</option>
+                        <option value="declined">Declined</option>
+                        <option value="not_required">Not required yet</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="consent_date" class="block text-sm font-medium text-gray-700 mb-1">Consent date</label>
+                    <input type="date" id="consent_date" name="consent_date" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                </div>
+                <div>
+                    <label for="risk_rating" class="block text-sm font-medium text-gray-700 mb-1">Risk rating</label>
+                    <select id="risk_rating" name="risk_rating" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="unknown">Unknown</option>
+                        <option value="green">Green</option>
+                        <option value="amber">Amber</option>
+                        <option value="red">Red</option>
+                    </select>
+                </div>
+                <div>
+                    <label for="risk_notes" class="block text-sm font-medium text-gray-700 mb-1">Risk notes</label>
+                    <textarea id="risk_notes" name="risk_notes" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                </div>
+                <div>
+                    <label for="mental_health_notes" class="block text-sm font-medium text-gray-700 mb-1">Mental health notes</label>
+                    <textarea id="mental_health_notes" name="mental_health_notes" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                </div>
+                <div>
+                    <label for="current_situation" class="block text-sm font-medium text-gray-700 mb-1">Current situation</label>
+                    <select id="current_situation" name="current_situation" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="">Not recorded</option>
+                        <option value="rough_sleeping">Rough sleeping</option>
+                        <option value="temporary_accommodation">Temporary accommodation</option>
+                        <option value="hotel">Hotel</option>
+                        <option value="housed">Housed</option>
+                        <option value="unknown">Unknown</option>
+                    </select>
+                </div>
+            </div>
+        </details>
+
+        <!-- Case Notes -->
         <div>
             <label class="block text-sm font-semibold text-gray-800 mb-1">Case Notes</label>
-            <div id="editor" class="bg-white"></div>
-            <input type="hidden" id="notes" name="notes" />
+            <textarea id="notes" name="notes" rows="5" class="offline-draft w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" data-draft-key="new-case-notes"></textarea>
         </div>
 
         <!-- Voice Note -->
@@ -143,24 +221,6 @@
 {% block scripts %}
 <script>
     document.addEventListener('DOMContentLoaded', function() {
-        // Initialize Quill editor
-        var quill = new Quill('#editor', {
-            theme: 'snow',
-            placeholder: 'Add important information',
-            modules: {
-                toolbar: [
-                    ['bold', 'italic', 'underline'],
-                    [{ 'list': 'ordered'}, { 'list': 'bullet' }],
-                    ['clean']
-                ]
-            }
-        });
-
-        // Sync Quill content to hidden input on form submit
-        document.getElementById('case-form').addEventListener('submit', function() {
-            document.getElementById('notes').value = quill.root.innerHTML;
-        });
-
         // --- Voice Note Recording + Transcription ---
         var recordBtn = document.getElementById('record-btn');
         var voicePlayback = document.getElementById('voice-playback');
@@ -256,6 +316,7 @@
 
             fetch('/transcribe', {
                 method: 'POST',
+                headers: window.quickCaptureCsrfHeaders(),
                 body: formData
             })
             .then(function(response) { return response.json(); })
@@ -279,17 +340,52 @@
             });
         }
 
-        // Copy transcript to Quill editor
+        // Copy transcript to the note field
         copyToNotesBtn.addEventListener('click', function() {
             var text = transcriptionText.textContent;
             if (text) {
-                var length = quill.getLength();
-                if (length > 1) {
-                    quill.insertText(length - 1, '\n' + text);
+                var notes = document.getElementById('notes');
+                if (notes.value.trim()) {
+                    notes.value = notes.value + '\n' + text;
                 } else {
-                    quill.setText(text);
+                    notes.value = text;
                 }
             }
+        });
+
+        document.querySelectorAll('.offline-draft').forEach(function(input) {
+            var key = input.dataset.draftKey;
+            var stored = localStorage.getItem(key);
+            if (stored && !input.value) input.value = stored;
+            input.addEventListener('input', function() {
+                localStorage.setItem(key, input.value);
+            });
+            input.form.addEventListener('submit', function() {
+                localStorage.removeItem(key);
+            });
+        });
+
+        function calculateAge(dateValue) {
+            if (!dateValue) return '';
+            var parts = dateValue.split('-').map(Number);
+            if (parts.length !== 3 || parts.some(isNaN)) return '';
+            var birthDate = new Date(parts[0], parts[1] - 1, parts[2]);
+            var today = new Date();
+            if (birthDate > today) return '';
+            var age = today.getFullYear() - birthDate.getFullYear();
+            var hasHadBirthday = today.getMonth() > birthDate.getMonth() ||
+                (today.getMonth() === birthDate.getMonth() && today.getDate() >= birthDate.getDate());
+            return hasHadBirthday ? age : age - 1;
+        }
+
+        document.querySelectorAll('[data-age-target]').forEach(function(dateInput) {
+            var ageInput = document.getElementById(dateInput.dataset.ageTarget);
+            if (!ageInput) return;
+            var syncAge = function() {
+                ageInput.value = calculateAge(dateInput.value);
+            };
+            dateInput.addEventListener('change', syncAge);
+            syncAge();
         });
     });
 </script>

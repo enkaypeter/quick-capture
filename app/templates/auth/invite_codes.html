@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block title %}Invite Codes - Simon on the Streets{% endblock %}
+
+{% block content %}
+<div class="space-y-6">
+    <div class="flex flex-col gap-3 sm:flex-row sm:items-end sm:justify-between">
+        <div>
+            <h1 class="text-2xl font-bold text-gray-900">Invite Codes</h1>
+            <p class="mt-1 text-sm text-gray-600">Create a code, copy it, and share it through an approved channel.</p>
+        </div>
+    </div>
+
+    <section class="rounded-lg border border-gray-200 bg-white p-4 shadow-sm">
+        <h2 class="text-base font-semibold text-gray-900">Create Code</h2>
+        <form method="POST" action="{{ url_for('auth.create_invite_code') }}" class="mt-4 grid gap-4 sm:grid-cols-[1fr_140px_auto] sm:items-end">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+            <div>
+                <label for="label" class="block text-sm font-medium text-gray-700">Label</label>
+                <input
+                    type="text"
+                    id="label"
+                    name="label"
+                    placeholder="Name or reason"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm"
+                />
+            </div>
+            <div>
+                <label for="max_uses" class="block text-sm font-medium text-gray-700">Uses</label>
+                <input
+                    type="number"
+                    id="max_uses"
+                    name="max_uses"
+                    min="1"
+                    max="25"
+                    value="1"
+                    class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-brand-500 focus:ring-brand-500 sm:text-sm"
+                />
+            </div>
+            <button type="submit" class="inline-flex min-h-10 items-center justify-center rounded-md bg-brand-600 px-4 py-2 text-sm font-medium text-white shadow-sm hover:bg-brand-700">
+                Create
+            </button>
+        </form>
+    </section>
+
+    <section class="overflow-hidden rounded-lg border border-gray-200 bg-white shadow-sm">
+        <div class="border-b border-gray-200 px-4 py-3">
+            <h2 class="text-base font-semibold text-gray-900">Existing Codes</h2>
+        </div>
+        {% if invite_codes %}
+        <div class="overflow-x-auto">
+            <table class="min-w-full divide-y divide-gray-200 text-sm">
+                <thead class="bg-gray-50">
+                    <tr>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Code</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Label</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Status</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Uses</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Created</th>
+                        <th class="px-4 py-3 text-left font-medium text-gray-600">Used By</th>
+                        <th class="px-4 py-3 text-right font-medium text-gray-600">Action</th>
+                    </tr>
+                </thead>
+                <tbody class="divide-y divide-gray-100 bg-white">
+                    {% for invite in invite_codes %}
+                    <tr>
+                        <td class="px-4 py-3 font-mono text-xs text-gray-900">{{ invite.code }}</td>
+                        <td class="px-4 py-3 text-gray-700">{{ invite.label or "-" }}</td>
+                        <td class="px-4 py-3">
+                            <span class="inline-flex rounded-full px-2 py-1 text-xs font-medium
+                                {% if invite.status == 'active' %}bg-green-50 text-green-700
+                                {% elif invite.status == 'used' %}bg-gray-100 text-gray-700
+                                {% else %}bg-red-50 text-red-700{% endif %}">
+                                {{ invite.status|title }}
+                            </span>
+                        </td>
+                        <td class="px-4 py-3 text-gray-700">{{ invite.uses }} / {{ invite.max_uses }}</td>
+                        <td class="px-4 py-3 text-gray-700">
+                            <time class="local-date" datetime="{{ invite.created_at.isoformat() }}">{{ invite.created_at.strftime("%d %b %Y") }}</time>
+                        </td>
+                        <td class="px-4 py-3 text-gray-700">{{ invite.used_by.email if invite.used_by else "-" }}</td>
+                        <td class="px-4 py-3 text-right">
+                            {% if invite.status == 'active' %}
+                            <form method="POST" action="{{ url_for('auth.deny_invite_code', invite_id=invite.id) }}">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                                <button type="submit" class="text-sm font-medium text-red-700 hover:text-red-900">Deny</button>
+                            </form>
+                            {% else %}
+                            <span class="text-sm text-gray-400">-</span>
+                            {% endif %}
+                        </td>
+                    </tr>
+                    {% endfor %}
+                </tbody>
+            </table>
+        </div>
+        {% else %}
+        <div class="px-4 py-8 text-center text-sm text-gray-500">No invite codes yet.</div>
+        {% endif %}
+    </section>
+</div>
+{% endblock %}

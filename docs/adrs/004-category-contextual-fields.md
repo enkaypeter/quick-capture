@@ -10,13 +10,13 @@ Accepted
 
 ## Context
 
-Cases progress through categories as the relationship between social worker and prospect deepens:
+Cases progress through categories as the relationship between social worker and prospect deepens. The UI labels this as `Case status` to make the control clearer, while preserving the documented SOTS terms:
 
-| Category | Description |
-|----------|-------------|
-| `non-caseload` | Default. First-time interaction with limited information |
-| `caseload` | Ongoing engagement — worker is actively supporting this person |
-| `client` | Full client relationship — verified identity, formal support plan |
+| Stored value | UI label | Description |
+|--------------|----------|-------------|
+| `non-caseload` | Non-caseload | Not currently on the active caseload |
+| `caseload` | Caseload | Actively supported by the team |
+| `client` | Client | Formal client record with fuller identity details |
 
 Each category has different data requirements:
 
@@ -25,9 +25,9 @@ Each category has different data requirements:
 
 ## Decision
 
-### Category Toggle
+### Case Status Selector
 
-The category display on the case detail page is now an interactive `<select>` dropdown that allows immediate switching between categories. Changing the category:
+The case status display on the case detail page is an interactive `<select>` dropdown that allows immediate switching between categories. Changing the category:
 
 1. Shows/hides the relevant contextual section (actions or NI number)
 2. Sends a `POST /cases/<id>/category` request to persist the change
@@ -55,7 +55,7 @@ The `ni_number` field is stored directly on the `cases` table.
 
 ## Consequences
 
-- The category change is no longer just a simple field update — it may trigger validation (NI required for client) or UI changes (actions panel)
+- The case status change is no longer just a simple field update — it may trigger validation (NI required for client) or UI changes (actions panel)
 - Predefined actions are defined as constants in `PredefinedAction` class. Adding new predefined actions requires a code change but no migration.
 - Custom actions are free-text — there's no deduplication or normalisation
 - Actions are replaced wholesale on save (delete all + recreate) rather than diffed individually. This simplifies the logic at the cost of losing individual action timestamps on updates.
@@ -86,4 +86,4 @@ The `ni_number` field is stored directly on the `cases` table.
 - `app/repositories/case_action_repository.py` — CRUD + `delete_by_case_id()`
 - `app/services/case_service.py` — `update_category()` extended, `get_actions_for_case()`, `update_actions()`
 - `app/views/cases.py` — `GET/POST /cases/<id>/actions`
-- `app/templates/cases/detail.html` — category dropdown, actions panel, NI panel
+- `app/templates/cases/detail.html` — case status dropdown, actions panel, NI panel

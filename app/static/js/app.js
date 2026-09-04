@@ -9,6 +9,17 @@
 (function () {
   "use strict";
 
+  var csrfTokenMeta = document.querySelector('meta[name="csrf-token"]');
+  var csrfToken = csrfTokenMeta ? csrfTokenMeta.getAttribute("content") : "";
+
+  window.quickCaptureCsrfHeaders = function () {
+    return csrfToken ? { "X-CSRFToken": csrfToken } : {};
+  };
+
+  if ("serviceWorker" in navigator) {
+    navigator.serviceWorker.register("/service-worker.js").catch(function () {});
+  }
+
   // ─── Flash messages: auto-dismiss after 5s ───────────────────────────
   document.querySelectorAll(".flash-msg").forEach(function (el) {
     setTimeout(function () {
@@ -164,7 +175,7 @@
 
     fetch("/location/autosuggest", {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: Object.assign({ "Content-Type": "application/json" }, window.quickCaptureCsrfHeaders()),
       body: JSON.stringify(payload),
     })
       .then(function (response) {

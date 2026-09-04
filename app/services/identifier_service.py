@@ -33,8 +33,12 @@ class IdentifierService:
         loc_part = self._extract_location_part(location_w3w)
         keyword = self._extract_keyword(notes, transcript)
         prefix = f"{loc_part}-{keyword}"
-        sequence = self.case_repo.count_by_location_prefix(prefix) + 1
-        return f"{prefix}-{sequence:03d}"
+        sequence = 1
+        while True:
+            identifier = f"{prefix}-{sequence:03d}"
+            if not self.case_repo.identifier_exists(identifier):
+                return identifier
+            sequence += 1
 
     def _extract_location_part(self, location_w3w: Optional[str]) -> str:
         """Extract the first word from a What3Words address."""

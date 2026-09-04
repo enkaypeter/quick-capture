@@ -21,6 +21,11 @@ class Case(db.Model):
     # Basic info from the form
     full_name = db.Column(db.String(200), nullable=True)
     phone_number = db.Column(db.String(20), nullable=True)
+    date_of_birth = db.Column(db.String(10), nullable=True)
+    age = db.Column(db.Integer, nullable=True)
+    gender = db.Column(db.String(50), nullable=True)
+    physical_description = db.Column(db.Text, nullable=True)
+    other_contact = db.Column(db.String(200), nullable=True)
 
     # Location - stored as What3Words address + raw coords
     location_w3w = db.Column(db.String(200), nullable=True)
@@ -40,14 +45,24 @@ class Case(db.Model):
     # National Insurance number (required when category is "client")
     ni_number = db.Column(db.String(20), nullable=True)
 
+    consent_status = db.Column(db.String(20), nullable=False, default="unknown")
+    consent_date = db.Column(db.String(10), nullable=True)
+
+    risk_rating = db.Column(db.String(20), nullable=False, default="unknown")
+    risk_notes = db.Column(db.Text, nullable=True)
+    mental_health_notes = db.Column(db.Text, nullable=True)
+    current_situation = db.Column(db.String(100), nullable=True)
+
     # Metadata
     created_at = db.Column(db.DateTime(timezone=True), default=func.now())
     updated_at = db.Column(
         db.DateTime(timezone=True), default=func.now(), onupdate=func.now()
     )
+    archived_at = db.Column(db.DateTime(timezone=True), nullable=True)
 
     # Foreign key to the social worker who created it
     user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=False)
+    assigned_user_id = db.Column(db.Integer, db.ForeignKey("users.id"), nullable=True)
 
     # Relationship to case notes
     notes = db.relationship(
@@ -57,6 +72,27 @@ class Case(db.Model):
     # Relationship to case actions (caseload category)
     actions = db.relationship(
         "CaseAction", backref="case", lazy="dynamic", cascade="all, delete-orphan"
+    )
+
+    interactions = db.relationship(
+        "CaseInteraction",
+        backref="case",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
+
+    follow_up_tasks = db.relationship(
+        "FollowUpTask",
+        backref="case",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
+    )
+
+    attachments = db.relationship(
+        "CaseAttachment",
+        backref="case",
+        lazy="dynamic",
+        cascade="all, delete-orphan",
     )
 
     def __repr__(self):

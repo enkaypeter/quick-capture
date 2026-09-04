@@ -1,6 +1,10 @@
-from flask import render_template, request, flash, redirect, url_for, jsonify
+import csv
+from io import StringIO
+
+from flask import Response, render_template, request, flash, redirect, url_for, jsonify, send_from_directory, current_app
 from flask_login import login_required, current_user
 
+from app.models.case_interaction import InteractionTagType
 from app.services.case_service import CaseService
 from app.views import cases_bp
 
@@ -13,12 +17,23 @@ def landing():
     return render_template("landing.html", is_authenticated=current_user.is_authenticated)
 
 
+@cases_bp.route("/service-worker.js")
+def service_worker():
+    return send_from_directory(
+        current_app.static_folder,
+        "js/service-worker.js",
+        mimetype="application/javascript",
+    )
+
+
 @cases_bp.route("/dashboard")
 @login_required
 def list_cases():
-    """Dashboard view - list all cases for the current user."""
-    cases = case_service.get_cases_for_user(current_user.id)
-    return render_template("cases/list.html", cases=cases)
+    """Dashboard view - list all active team-visible cases."""
+    query = request.args.get("q", "").strip()
+    cases = case_service.search_cases(query) if query else case_service.get_cases_for_user(current_user.id)
+    follow_ups = case_service.get_upcoming_follow_ups()
+    return render_template("cases/list.html", cases=cases, query=query, follow_ups=follow_ups)
 
 
 @cases_bp.route("/cases/new", methods=["GET", "POST"])
@@ -32,6 +47,25 @@ def create_case():
         notes_content = request.form.get("notes", "").strip()
         category = request.form.get("category", "").strip()
         voice_transcript = request.form.get("voice_transcript", "").strip()
+        date_of_birth = request.form.get("date_of_birth", "").strip()
+        age_str = request.form.get("age", "").strip()
+        gender = request.form.get("gender", "").strip()
+        physical_description = request.form.get("physical_description", "").strip()
+        other_contact = request.form.get("other_contact", "").strip()
+        consent_status = request.form.get("consent_status", "unknown").strip()
+        consent_date = request.form.get("consent_date", "").strip()
+        risk_rating = request.form.get("risk_rating", "unknown").strip()
+        risk_notes = request.form.get("risk_notes", "").strip()
+        mental_health_notes = request.form.get("mental_health_notes", "").strip()
+        current_situation = request.form.get("current_situation", "").strip()
+
+        age = None
+        if age_str:
+            try:
+                age = int(age_str)
+            except ValueError:
+                flash("Age must be a number.", category="error")
+                return render_template("cases/create.html")
 
         # Parse location coordinates if provided
         location_lat = None
@@ -59,6 +93,17 @@ def create_case():
             category=category or None,
             voice_note_file=voice_note_file,
             voice_transcript=voice_transcript or None,
+            date_of_birth=date_of_birth or None,
+            age=age,
+            gender=gender or None,
+            physical_description=physical_description or None,
+            other_contact=other_contact or None,
+            consent_status=consent_status or None,
+            consent_date=consent_date or None,
+            risk_rating=risk_rating or None,
+            risk_notes=risk_notes or None,
+            mental_health_notes=mental_health_notes or None,
+            current_situation=current_situation or None,
         )
 
         if error:
@@ -75,29 +120,52 @@ def create_case():
 def view_case(case_id):
     """View a single case with all its notes."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         flash("Case not found.", category="error")
         return redirect(url_for("cases.list_cases"))
 
     notes = case_service.get_notes_for_case(case_id)
-    return render_template("cases/detail.html", case=case, notes=notes)
+    interactions = case_service.get_interactions_for_case(case_id)
+    follow_ups = case_service.get_follow_ups_for_case(case_id)
+    attachments = case_service.get_attachments_for_case(case_id)
+    return render_template(
+        "cases/detail.html",
+        case=case,
+        notes=notes,
+        interactions=interactions,
+        follow_ups=follow_ups,
+        attachments=attachments,
+        tag_labels=InteractionTagType.LABELS,
+    )
 
 
 @cases_bp.route("/cases/<int:case_id>/edit", methods=["POST"])
 @login_required
 def edit_case(case_id):
-    """Update editable case fields (full_name, phone_number) via AJAX."""
+    """Update editable case fields via AJAX."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
 
     updated_case, error = case_service.update_case_fields(
         case=case,
         user_id=current_user.id,
         full_name=data.get("full_name"),
         phone_number=data.get("phone_number"),
+        ni_number=data.get("ni_number"),
+        date_of_birth=data.get("date_of_birth"),
+        age=data.get("age"),
+        gender=data.get("gender"),
+        physical_description=data.get("physical_description"),
+        other_contact=data.get("other_contact"),
+        consent_status=data.get("consent_status"),
+        consent_date=data.get("consent_date"),
+        risk_rating=data.get("risk_rating"),
+        risk_notes=data.get("risk_notes"),
+        mental_health_notes=data.get("mental_health_notes"),
+        current_situation=data.get("current_situation"),
     )
 
     if error:
@@ -107,6 +175,18 @@ def edit_case(case_id):
         "success": True,
         "full_name": updated_case.full_name or "",
         "phone_number": updated_case.phone_number or "",
+        "ni_number": updated_case.ni_number or "",
+        "date_of_birth": updated_case.date_of_birth or "",
+        "age": updated_case.age or "",
+        "gender": updated_case.gender or "",
+        "physical_description": updated_case.physical_description or "",
+        "other_contact": updated_case.other_contact or "",
+        "consent_status": updated_case.consent_status or "unknown",
+        "consent_date": updated_case.consent_date or "",
+        "risk_rating": updated_case.risk_rating or "unknown",
+        "risk_notes": updated_case.risk_notes or "",
+        "mental_health_notes": updated_case.mental_health_notes or "",
+        "current_situation": updated_case.current_situation or "",
     })
 
 
@@ -115,10 +195,10 @@ def edit_case(case_id):
 def edit_note(case_id, note_id):
     """Update note content via AJAX."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     content = data.get("content", "").strip()
 
     note, error = case_service.update_note_content(
@@ -138,7 +218,7 @@ def edit_note(case_id, note_id):
 def add_note(case_id):
     """Add a new note to a case — either manual or voice-transcribed, not both."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         flash("Case not found.", category="error")
         return redirect(url_for("cases.list_cases"))
 
@@ -170,7 +250,7 @@ def add_note(case_id):
 def delete_note(case_id, note_id):
     """Delete a note from a case."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         flash("Case not found.", category="error")
         return redirect(url_for("cases.list_cases"))
 
@@ -187,7 +267,7 @@ def delete_note(case_id, note_id):
 def mark_reviewed(case_id, note_id):
     """Mark a transcribed note as reviewed."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
     note = case_service.mark_note_reviewed(note_id, user_id=current_user.id)
@@ -201,12 +281,12 @@ def mark_reviewed(case_id, note_id):
 def delete_case(case_id):
     """Delete a case."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         flash("Case not found.", category="error")
         return redirect(url_for("cases.list_cases"))
 
     case_service.delete_case(case, user_id=current_user.id)
-    flash("Case deleted.", category="success")
+    flash("Case archived.", category="success")
     return redirect(url_for("cases.list_cases"))
 
 
@@ -218,10 +298,10 @@ def update_category(case_id):
     When switching to 'client', expects ni_number in the payload.
     """
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     category = data.get("category", "")
     ni_number = data.get("ni_number")
 
@@ -243,7 +323,7 @@ def update_category(case_id):
 def get_actions(case_id):
     """Get actions for a case (JSON API)."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
     actions = case_service.get_actions_for_case(case_id)
@@ -265,10 +345,10 @@ def get_actions(case_id):
 def update_actions(case_id):
     """Update actions for a case (JSON API)."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     actions_data = data.get("actions", [])
 
     actions = case_service.update_actions(
@@ -296,10 +376,10 @@ def update_actions(case_id):
 def update_ni_number(case_id):
     """Update National Insurance number for a client case (JSON API)."""
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
-    data = request.get_json()
+    data = request.get_json() or {}
     ni_number = data.get("ni_number", "").strip()
 
     if not ni_number:
@@ -324,7 +404,7 @@ def audit_trail(case_id):
     from app.services.audit_service import AuditService
 
     case = case_service.get_case(case_id)
-    if not case or case.user_id != current_user.id:
+    if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
     audit_service = AuditService()
@@ -344,6 +424,166 @@ def audit_trail(case_id):
             for entry in entries
         ]
     })
+
+
+@cases_bp.route("/cases/<int:case_id>/interactions", methods=["POST"])
+@login_required
+def add_interaction(case_id):
+    """Add a timestamped, reportable interaction to a case."""
+    case = case_service.get_case(case_id)
+    if not case or case.archived_at:
+        flash("Case not found.", category="error")
+        return redirect(url_for("cases.list_cases"))
+
+    tag_types = request.form.getlist("tags")
+    note_content = request.form.get("interaction_note", "").strip()
+    outcome = request.form.get("outcome", "").strip()
+    location_w3w = request.form.get("interaction_location_w3w", "").strip()
+    lat_str = request.form.get("interaction_location_lat", "").strip()
+    lng_str = request.form.get("interaction_location_lng", "").strip()
+
+    location_lat = None
+    location_lng = None
+    if lat_str and lng_str:
+        try:
+            location_lat = float(lat_str)
+            location_lng = float(lng_str)
+        except ValueError:
+            flash("Location coordinates were ignored because they were invalid.", category="error")
+
+    interaction, error = case_service.add_interaction(
+        case_id=case.id,
+        user_id=current_user.id,
+        note_content=note_content,
+        tag_types=tag_types,
+        outcome=outcome or None,
+        location_w3w=location_w3w or None,
+        location_lat=location_lat,
+        location_lng=location_lng,
+    )
+
+    attachment = request.files.get("interaction_attachment")
+    if interaction and attachment and attachment.filename:
+        _, attachment_error = case_service.add_attachment(
+            case_id=case.id,
+            user_id=current_user.id,
+            file=attachment,
+            interaction_id=interaction.id,
+        )
+        if attachment_error:
+            flash(attachment_error, category="error")
+
+    if error:
+        flash(error, category="error")
+    else:
+        flash("Interaction saved.", category="success")
+    return redirect(url_for("cases.view_case", case_id=case_id))
+
+
+@cases_bp.route("/cases/<int:case_id>/follow-ups", methods=["POST"])
+@login_required
+def add_follow_up(case_id):
+    case = case_service.get_case(case_id)
+    if not case or case.archived_at:
+        flash("Case not found.", category="error")
+        return redirect(url_for("cases.list_cases"))
+
+    _, error = case_service.add_follow_up_task(
+        case_id=case.id,
+        user_id=current_user.id,
+        title=request.form.get("title", ""),
+        due_date=request.form.get("due_date", ""),
+    )
+    flash(error or "Follow-up added.", category="error" if error else "success")
+    return redirect(url_for("cases.view_case", case_id=case_id))
+
+
+@cases_bp.route("/cases/<int:case_id>/follow-ups/<int:task_id>/complete", methods=["POST"])
+@login_required
+def complete_follow_up(case_id, task_id):
+    case = case_service.get_case(case_id)
+    if not case or case.archived_at:
+        flash("Case not found.", category="error")
+        return redirect(url_for("cases.list_cases"))
+
+    _, error = case_service.complete_follow_up_task(task_id=task_id, user_id=current_user.id)
+    flash(error or "Follow-up completed.", category="error" if error else "success")
+    return redirect(url_for("cases.view_case", case_id=case_id))
+
+
+@cases_bp.route("/cases/<int:case_id>/attachments", methods=["POST"])
+@login_required
+def add_attachment(case_id):
+    case = case_service.get_case(case_id)
+    if not case or case.archived_at:
+        flash("Case not found.", category="error")
+        return redirect(url_for("cases.list_cases"))
+
+    _, error = case_service.add_attachment(
+        case_id=case.id,
+        user_id=current_user.id,
+        file=request.files.get("attachment"),
+    )
+    flash(error or "Attachment uploaded.", category="error" if error else "success")
+    return redirect(url_for("cases.view_case", case_id=case_id))
+
+
+@cases_bp.route("/attachments/<int:attachment_id>")
+@login_required
+def download_attachment(attachment_id):
+    from app.models.case_attachment import CaseAttachment
+
+    attachment = CaseAttachment.query.get_or_404(attachment_id)
+    case = case_service.get_case(attachment.case_id)
+    if not case or case.archived_at:
+        flash("Attachment not found.", category="error")
+        return redirect(url_for("cases.list_cases"))
+
+    directory = current_app.config["UPLOAD_FOLDER"]
+    return send_from_directory(
+        directory,
+        attachment.stored_path,
+        as_attachment=True,
+        download_name=attachment.original_filename,
+    )
+
+
+@cases_bp.route("/reports")
+@login_required
+def reports():
+    return render_template("cases/reports.html", summary=case_service.reporting_summary())
+
+
+@cases_bp.route("/reports/export.csv")
+@login_required
+def reports_export():
+    output = StringIO()
+    writer = csv.writer(output)
+    writer.writerow(["case_identifier", "case_name", "interaction_date", "worker", "tags", "outcome", "risk_rating", "current_situation"])
+
+    from app.models.case_interaction import CaseInteraction
+
+    interactions = CaseInteraction.query.order_by(CaseInteraction.occurred_at.desc()).all()
+    for interaction in interactions:
+        case = interaction.case
+        if case.archived_at:
+            continue
+        writer.writerow([
+            case.identifier,
+            case.full_name or "",
+            interaction.occurred_at.isoformat() if interaction.occurred_at else "",
+            interaction.worker.first_name if interaction.worker else "",
+            "; ".join(tag.label for tag in interaction.tags),
+            interaction.outcome or "",
+            case.risk_rating or "unknown",
+            case.current_situation or "",
+        ])
+
+    return Response(
+        output.getvalue(),
+        mimetype="text/csv",
+        headers={"Content-Disposition": "attachment; filename=sots-report.csv"},
+    )
 
 
 @cases_bp.route("/transcribe", methods=["POST"])
@@ -391,7 +631,7 @@ def autosuggest_location():
     """
     from app.services.w3w_service import W3WService
 
-    data = request.get_json()
+    data = request.get_json() or {}
     input_text = data.get("input", "").strip()
 
     if not input_text:

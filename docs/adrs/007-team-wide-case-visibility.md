@@ -65,7 +65,9 @@ The controls that make it proportionate are:
 
 **Required before live data**
 
-- Trustee or SIRO sign-off on this model, recorded in the DPIA.
+- Trustee or SIRO sign-off on this model, recorded in the DPIA. This is
+  blocker 3 in
+  [operations/go-live-checklist.md](../operations/go-live-checklist.md).
 - The privacy notice and staff data protection training must state plainly that
   all workers can see all records, and that reads are logged.
 

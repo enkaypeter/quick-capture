@@ -88,7 +88,10 @@ To restore into production:
 
 ## The restore drill
 
-**An untested backup is not a backup.** Run this at least quarterly, and after
+**An untested backup is not a backup.** Running this once against the real
+deployment is blocker 4 in
+[go-live-checklist.md](go-live-checklist.md) — the app must not hold live data
+until it has been done. Run this at least quarterly, and after
 any change to hosting or storage:
 
 1. Take a fresh backup.

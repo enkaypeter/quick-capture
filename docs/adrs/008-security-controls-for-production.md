@@ -79,10 +79,16 @@ depends on them. This is a real limitation, recorded in
 
 ## Not Covered
 
-These remain outstanding and are **not** closed by this ADR:
+These remain outstanding and are **not** closed by this ADR. Closing eleven
+code blockers does not make the system lawful to use; the remaining work is
+organisational, and is tracked in
+[operations/go-live-checklist.md](../operations/go-live-checklist.md).
 
 - A Data Protection Impact Assessment. Legally required here (Article 35), and
   a document, not a code change.
+- Retention periods agreed by the charity rather than the placeholder defaults.
+- Trustee sign-off on ADR-007.
+- A restore drill run against a real deployment.
 - Password reset and self-service account recovery.
 - MFA for non-admin workers (supported by config, not yet mandated).
 - Single sign-on, which would remove password handling entirely.

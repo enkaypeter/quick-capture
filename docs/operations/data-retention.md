@@ -55,7 +55,8 @@ Schedule it daily or weekly:
 | Access logs | `RETENTION_ACCESS_LOG_DAYS` | 365 | Security monitoring data, not casework. Long enough to investigate an incident. |
 | Login attempts | `RETENTION_LOGIN_ATTEMPT_DAYS` | 30 | Only needed for the throttling window. |
 
-Set these deliberately. A retention period nobody chose is not a retention
+Agreeing these is blocker 2 in
+[go-live-checklist.md](go-live-checklist.md). Set them deliberately. A retention period nobody chose is not a retention
 policy, and the ICO will ask who decided and on what basis.
 
 Note that the clock starts at `archived_at`, not `created_at`. An active case is

@@ -119,7 +119,9 @@ from a risk assessment at 11pm is worse.
 
 ## Still outstanding
 
-These are **not** closed:
+The four organisational items that block live data are in
+[go-live-checklist.md](go-live-checklist.md). Beyond those, these are **not**
+closed:
 
 - A Data Protection Impact Assessment (legally required, Article 35)
 - Password reset and self-service recovery

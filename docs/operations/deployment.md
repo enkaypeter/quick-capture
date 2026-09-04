@@ -178,11 +178,14 @@ running on a publicly known secret key looks perfectly healthy.
 
 ## Before real data is entered
 
-Code changes do not make this system lawful to use. Still outstanding:
+Deploying this correctly does not make it lawful to use. Four things remain,
+and none of them are code changes:
 
-- [ ] A completed DPIA (legally required under Article 35)
-- [ ] ICO registration current, privacy notice updated
-- [ ] Trustee sign-off on ADR-007 (all workers see all cases)
-- [ ] A processor agreement with the hosting provider
-- [ ] A tested restore
-- [ ] Retention periods agreed with the charity, not just left at defaults
+1. A **Data Protection Impact Assessment** — legally required under Article 35
+2. **Retention periods agreed by the charity**, not left at the defaults
+3. **Trustee sign-off** on team-wide case visibility (ADR-007)
+4. **A restore drill actually run** against this deployment
+
+The full list, including the processor agreement and ICO registration, is in
+**[go-live-checklist.md](go-live-checklist.md)**. Work through it before
+anyone enters a real person's details.

@@ -2,6 +2,18 @@
 
 Use this guide to manage access and view reports.
 
+> **Do not put real people's details in this app yet.**
+>
+> Four things still have to happen first, and none of them are software work:
+>
+> 1. A data protection impact assessment must be completed.
+> 2. The charity must agree how long records are kept.
+> 3. The trustees must sign off that every worker can read every case.
+> 4. Someone must restore a backup and prove it works.
+>
+> Until then, use the demo cases only. See
+> [the go-live checklist](../operations/go-live-checklist.md).
+
 ## Log In As Admin
 
 1. Open the app.

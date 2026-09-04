@@ -134,7 +134,7 @@ The test suite covers the main MVP flows.
 Current result:
 
 ```bash
-139 passed
+160 passed
 ```
 
 The suite now covers the production security controls as well as the MVP
@@ -201,7 +201,17 @@ assessment are now closed in code. See
 [ADR-008](adrs/008-security-controls-for-production.md) and
 [operations/security-controls.md](operations/security-controls.md).
 
-Still outstanding, and none of them are code changes:
+**The app is not ready for live data.** Four things remain, and none of them
+are code changes — see
+[operations/go-live-checklist.md](operations/go-live-checklist.md) for the
+detail, owner and evidence needed for each:
+
+1. A **Data Protection Impact Assessment** (legally required, Article 35)
+2. **Retention periods agreed by the charity**, not the placeholder defaults
+3. **Trustee sign-off** on team-wide case visibility (ADR-007)
+4. **A restore drill actually run**
+
+Also outstanding:
 
 - **Hosting is not chosen.** Docker is now explicitly local-only.
   [operations/deployment.md](operations/deployment.md) states what any

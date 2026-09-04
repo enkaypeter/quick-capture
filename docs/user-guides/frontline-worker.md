@@ -2,6 +2,9 @@
 
 Use this guide when you need to add or update case records.
 
+> **Do not record real people in this app yet.** The charity has a few steps to
+> complete first. Practise with the demo cases until you are told otherwise.
+
 ## Log In
 
 1. Open the app.

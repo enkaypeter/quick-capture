@@ -1,3 +1,17 @@
+> ## ⚠️ Not ready for live data
+>
+> Four things must happen before real case data is entered, and **none of them
+> are code changes**:
+>
+> 1. A **Data Protection Impact Assessment** — legally required under Article 35
+> 2. **Retention periods agreed by the charity** — the current values are
+>    placeholders, not advice
+> 3. **Trustee sign-off** that all workers can read all cases ([ADR-007](docs/adrs/007-team-wide-case-visibility.md))
+> 4. **A restore drill actually run** — an untested backup is not a backup
+>
+> Until all four are done, use synthetic or demo data only.
+> Full detail: **[docs/operations/go-live-checklist.md](docs/operations/go-live-checklist.md)**
+
 Quick Capture [MVP] is a case management tool for Simon on the Streets social workers. It enables rapid recording of interactions with prospects — capturing names, locations, notes, quick tags, documents, follow-ups and voice recordings with minimal friction.
 
 The system is composed of two services:
@@ -20,6 +34,7 @@ Please refer to `docs/architecture.md` for the full system architecture.
 
 ### Operations
 
+- **[Go-live checklist](docs/operations/go-live-checklist.md)** — what still blocks live data
 - [Deployment](docs/operations/deployment.md) — what a production host must provide
 - [Security controls](docs/operations/security-controls.md) — what protects the system, and how to verify it
 - [Backups and restore](docs/operations/backups.md)

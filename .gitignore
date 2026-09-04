@@ -13,8 +13,15 @@ __pycache__/
 instance/
 uploads/
 
-# Environment
+# Environment - never commit real secrets
 .env
+.env.prod
+.env.production
+*.env.local
+
+# Backups
+/backups/
+*.tar.gz.enc
 
 # macOS
 .DS_Store

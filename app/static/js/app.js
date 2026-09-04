@@ -240,3 +240,80 @@
     locationStatus.classList.add(isError ? "text-red-500" : "text-gray-500");
   }
 })();
+
+// ─── Delegated handlers (Content Security Policy) ──────────────────────
+// The CSP set in app/security/headers.py pins script-src to this origin and a
+// per-request nonce, which blocks inline `onclick`/`onsubmit` attributes.
+// These listeners replace the two that used to be written into the markup.
+(function () {
+  document.addEventListener("click", function (event) {
+    var dismiss = event.target.closest("[data-dismiss-flash]");
+    if (dismiss && dismiss.parentElement) {
+      dismiss.parentElement.remove();
+    }
+  });
+
+  document.addEventListener(
+    "submit",
+    function (event) {
+      var form = event.target;
+      if (!form || !form.matches("[data-confirm]")) return;
+      if (!window.confirm(form.getAttribute("data-confirm"))) {
+        event.preventDefault();
+      }
+    },
+    true
+  );
+})();
+
+// ─── Case access history ───────────────────────────────────────────────
+// Shows who has read this case. Deliberately available to every worker, not
+// just admins: team-wide visibility is only acceptable when it is visible who
+// used it. See docs/adrs/007-team-wide-case-visibility.md.
+(function () {
+  var button = document.getElementById("access-log-btn");
+  if (!button) return;
+
+  var list = document.getElementById("access-log-entries");
+  var empty = document.getElementById("access-log-empty");
+
+  button.addEventListener("click", function () {
+    button.disabled = true;
+    button.textContent = "Loading...";
+
+    fetch("/cases/" + button.dataset.caseId + "/access-log")
+      .then(function (response) { return response.json(); })
+      .then(function (data) {
+        var entries = data.entries || [];
+        list.innerHTML = "";
+
+        entries.forEach(function (entry) {
+          var item = document.createElement("li");
+          var when = entry.timestamp ? new Date(entry.timestamp).toLocaleString() : "";
+          item.textContent = entry.user + " — " + describe(entry.action) + " — " + when;
+          list.appendChild(item);
+        });
+
+        list.classList.toggle("hidden", entries.length === 0);
+        empty.classList.toggle("hidden", entries.length > 0);
+        button.textContent = "Reload reading history";
+        button.disabled = false;
+      })
+      .catch(function () {
+        button.textContent = "Could not load history";
+        button.disabled = false;
+      });
+  });
+
+  function describe(action) {
+    var labels = {
+      viewed_case: "opened the case",
+      downloaded_attachment: "downloaded a document",
+      played_voice_note: "played a voice note",
+      viewed_audit_trail: "read the activity history",
+      exported_report: "exported the report file",
+      searched: "searched",
+    };
+    return labels[action] || action;
+  }
+})();

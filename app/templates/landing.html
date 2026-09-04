@@ -4,26 +4,8 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>QuickCapture by Simon on the Streets</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
-                            700: '#0369a1',
-                            800: '#075985',
-                            900: '#1e3a5f',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <script src="{{ url_for('static', filename='js/tailwind-config.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/tailwind.min.js') }}"></script>
 </head>
 <body class="h-full bg-white">
     <!-- Nav -->

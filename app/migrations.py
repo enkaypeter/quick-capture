@@ -27,6 +27,12 @@ def run_migrations():
         _create_case_attachments_table,
         _create_invite_codes_table,
         _create_audit_logs_table,
+        _add_mfa_fields_to_users,
+        _create_mfa_recovery_codes_table,
+        _create_login_attempts_table,
+        _create_access_logs_table,
+        _create_erasure_logs_table,
+        _encrypt_sensitive_case_fields,
     ]
 
     for migration in migrations:
@@ -267,3 +273,176 @@ def _create_audit_logs_table():
         )
     """))
     db.session.commit()
+
+
+def _add_mfa_fields_to_users():
+    """Migration: Add MFA and lockout columns to users (blockers 3 and 8)."""
+    columns = {
+        "totp_secret": "TEXT",
+        "mfa_enabled": "BOOLEAN NOT NULL DEFAULT 0",
+        "mfa_confirmed_at": "DATETIME",
+        "locked_until": "DATETIME",
+    }
+
+    for column, ddl_type in columns.items():
+        if _column_exists("users", column):
+            continue
+        logger.info(f"Applying migration: add {column} to users")
+        db.session.execute(
+            db.text(f"ALTER TABLE users ADD COLUMN {column} {ddl_type}")
+        )
+        db.session.commit()
+
+
+def _create_mfa_recovery_codes_table():
+    """Migration: Create mfa_recovery_codes table."""
+    if _table_exists("mfa_recovery_codes"):
+        return
+
+    logger.info("Applying migration: create mfa_recovery_codes table")
+    db.session.execute(db.text("""
+        CREATE TABLE mfa_recovery_codes (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            code_hash VARCHAR(256) NOT NULL,
+            used_at DATETIME,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id)
+        )
+    """))
+    db.session.commit()
+
+
+def _create_login_attempts_table():
+    """Migration: Create login_attempts table (blocker 3)."""
+    if _table_exists("login_attempts"):
+        return
+
+    logger.info("Applying migration: create login_attempts table")
+    db.session.execute(db.text("""
+        CREATE TABLE login_attempts (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            email VARCHAR(150),
+            ip_address VARCHAR(45),
+            successful BOOLEAN NOT NULL DEFAULT 0,
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    db.session.execute(db.text(
+        "CREATE INDEX ix_login_attempts_email ON login_attempts (email)"
+    ))
+    db.session.execute(db.text(
+        "CREATE INDEX ix_login_attempts_ip_address ON login_attempts (ip_address)"
+    ))
+    db.session.execute(db.text(
+        "CREATE INDEX ix_login_attempts_created_at ON login_attempts (created_at)"
+    ))
+    db.session.commit()
+
+
+def _create_access_logs_table():
+    """Migration: Create access_logs table (blocker 10)."""
+    if _table_exists("access_logs"):
+        return
+
+    logger.info("Applying migration: create access_logs table")
+    db.session.execute(db.text("""
+        CREATE TABLE access_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            user_id INTEGER NOT NULL,
+            case_id INTEGER,
+            action VARCHAR(50) NOT NULL,
+            resource VARCHAR(200),
+            ip_address VARCHAR(45),
+            user_agent VARCHAR(300),
+            created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (user_id) REFERENCES users(id),
+            FOREIGN KEY (case_id) REFERENCES cases(id)
+        )
+    """))
+    db.session.execute(db.text(
+        "CREATE INDEX ix_access_logs_user_id ON access_logs (user_id)"
+    ))
+    db.session.execute(db.text(
+        "CREATE INDEX ix_access_logs_case_id ON access_logs (case_id)"
+    ))
+    db.session.execute(db.text(
+        "CREATE INDEX ix_access_logs_created_at ON access_logs (created_at)"
+    ))
+    db.session.commit()
+
+
+def _create_erasure_logs_table():
+    """Migration: Create erasure_logs table (blocker 11)."""
+    if _table_exists("erasure_logs"):
+        return
+
+    logger.info("Applying migration: create erasure_logs table")
+    db.session.execute(db.text("""
+        CREATE TABLE erasure_logs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            case_identifier VARCHAR(100) NOT NULL,
+            requested_by_user_id INTEGER,
+            reason VARCHAR(200) NOT NULL,
+            records_deleted INTEGER NOT NULL DEFAULT 0,
+            files_deleted INTEGER NOT NULL DEFAULT 0,
+            purged_at DATETIME DEFAULT CURRENT_TIMESTAMP
+        )
+    """))
+    db.session.commit()
+
+
+# Columns that moved from plaintext to EncryptedText in blocker 5.
+ENCRYPTED_CASE_COLUMNS = ("ni_number", "risk_notes", "mental_health_notes")
+
+
+def _encrypt_sensitive_case_fields():
+    """Migration: Encrypt case columns that were previously stored as plaintext.
+
+    Reads each row with raw SQL (bypassing the SQLAlchemy type decorator, which
+    would try to decrypt on the way out) and writes back ciphertext. Rows that
+    already carry the cipher prefix are skipped, so this is safe to re-run and
+    a no-op once every row is encrypted.
+
+    Does nothing when FIELD_ENCRYPTION_KEYS is unset, which is the normal
+    local development case.
+    """
+    from app.security.crypto import CIPHER_PREFIX, encrypt_value, parse_keys
+    from flask import current_app
+
+    if not parse_keys(current_app.config.get("FIELD_ENCRYPTION_KEYS")):
+        return
+
+    if not _table_exists("cases"):
+        return
+
+    columns = ", ".join(ENCRYPTED_CASE_COLUMNS)
+    rows = db.session.execute(
+        db.text(f"SELECT id, {columns} FROM cases")
+    ).fetchall()
+
+    updated = 0
+    for row in rows:
+        case_id = row[0]
+        changes = {}
+        for offset, column in enumerate(ENCRYPTED_CASE_COLUMNS, start=1):
+            value = row[offset]
+            if not value or value.startswith(CIPHER_PREFIX):
+                continue
+            changes[column] = encrypt_value(value)
+
+        if not changes:
+            continue
+
+        assignments = ", ".join(f"{column} = :{column}" for column in changes)
+        db.session.execute(
+            db.text(f"UPDATE cases SET {assignments} WHERE id = :id"),
+            {**changes, "id": case_id},
+        )
+        updated += 1
+
+    if updated:
+        logger.info(
+            f"Applying migration: encrypted sensitive fields on {updated} case(s)"
+        )
+        db.session.commit()

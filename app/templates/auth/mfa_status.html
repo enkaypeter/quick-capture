@@ -1,0 +1,30 @@
+{% extends "base.html" %}
+{% block title %}Two-factor authentication - Simon on the Streets{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-lg">
+    <h1 class="text-2xl font-bold mb-4">Two-factor authentication</h1>
+
+    {% if current_user.mfa_enabled %}
+    <div class="rounded-lg border border-green-200 bg-green-50 px-4 py-3 text-sm text-green-800 mb-4">
+        Two-factor authentication is on for {{ current_user.email }}.
+    </div>
+    <p class="text-sm text-gray-600 mb-4">
+        You have <strong>{{ unused_codes }}</strong> unused recovery code(s).
+    </p>
+    <form method="POST" action="{{ url_for('auth.mfa_regenerate_recovery_codes') }}"
+          data-confirm="Issue new recovery codes? Your existing codes will stop working.">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+        <button type="submit" class="rounded-lg border border-gray-300 px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50">
+            Issue new recovery codes
+        </button>
+    </form>
+    {% else %}
+    <div class="rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-900 mb-4">
+        Two-factor authentication is not set up{% if required %}, and your role requires it{% endif %}.
+    </div>
+    <a href="{{ url_for('auth.mfa_setup') }}" class="inline-block rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">
+        Set it up now
+    </a>
+    {% endif %}
+</div>
+{% endblock %}

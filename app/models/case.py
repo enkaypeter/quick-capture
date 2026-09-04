@@ -1,6 +1,7 @@
 from sqlalchemy.sql import func
 
 from app.extensions import db
+from app.security.crypto import EncryptedText
 
 
 class CaseCategory:
@@ -42,15 +43,20 @@ class Case(db.Model):
         default=CaseCategory.NON_CASELOAD,
     )
 
-    # National Insurance number (required when category is "client")
-    ni_number = db.Column(db.String(20), nullable=True)
+    # National Insurance number (required when category is "client").
+    # Encrypted at rest (blocker 5) - no query filters on it, so losing
+    # SQL searchability costs nothing here.
+    ni_number = db.Column(EncryptedText, nullable=True)
 
     consent_status = db.Column(db.String(20), nullable=False, default="unknown")
     consent_date = db.Column(db.String(10), nullable=True)
 
     risk_rating = db.Column(db.String(20), nullable=False, default="unknown")
-    risk_notes = db.Column(db.Text, nullable=True)
-    mental_health_notes = db.Column(db.Text, nullable=True)
+    # Risk and mental health notes are Article 9 special-category data and
+    # are encrypted at rest. Dashboard search deliberately does not cover
+    # them, so encryption does not break any existing query.
+    risk_notes = db.Column(EncryptedText, nullable=True)
+    mental_health_notes = db.Column(EncryptedText, nullable=True)
     current_situation = db.Column(db.String(100), nullable=True)
 
     # Metadata

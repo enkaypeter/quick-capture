@@ -134,8 +134,32 @@ The test suite covers the main MVP flows.
 Current result:
 
 ```bash
-19 passed
+139 passed
 ```
+
+The suite now covers the production security controls as well as the MVP
+flows — see the table in
+[operations/security-controls.md](operations/security-controls.md).
+
+### Security Controls
+
+The app now enforces the controls needed before real data can be entered:
+
+- Production refuses to start on unsafe configuration, such as a missing or
+  default `SECRET_KEY`.
+- Repeated failed logins lock an account; repeated failures from one address
+  throttle it.
+- Admins must set up two-factor authentication before they can use the app,
+  and are given recovery codes in case they lose their phone.
+- Sessions time out after 30 minutes of inactivity.
+- National Insurance numbers, risk notes and mental health notes are encrypted
+  in the database.
+- The app records who *read* a case, not only who changed it. Any worker can
+  see that history on a case.
+- Admins can permanently erase a case for a data subject erasure request, and a
+  scheduled job destroys archived cases past their retention period.
+- Encrypted backups and a tested restore path exist.
+- Pages no longer load any script from a third-party CDN.
 
 ## What Remains Outstanding
 
@@ -145,12 +169,14 @@ Dashboard search exists. Search inside one case profile does not exist yet.
 
 ### Full User Management
 
-Admins can manage invite codes. They cannot yet:
+Admins can manage invite codes, see every account in one place at `Accounts`,
+and unlock an account that has been locked by failed logins.
 
-- change a user role
-- disable a user
+They still cannot:
+
+- change a user role (this is a database change)
+- disable or remove a user
 - reset a password
-- see all users in one place
 
 ### Case Assignment UI
 
@@ -170,14 +196,39 @@ The app keeps some draft note text in the browser. It does not yet queue saved r
 
 ### Production Readiness
 
-Before real data is used, the team still needs decisions on:
+The eleven pre-production security blockers identified in the hosting
+assessment are now closed in code. See
+[ADR-008](adrs/008-security-controls-for-production.md) and
+[operations/security-controls.md](operations/security-controls.md).
 
-- hosting
-- backups
-- account setup
-- access rules
-- data retention
-- encryption for sensitive fields
+Still outstanding, and none of them are code changes:
+
+- **Hosting is not chosen.** Docker is now explicitly local-only.
+  [operations/deployment.md](operations/deployment.md) states what any
+  production host must provide, so the decision can be made against a concrete
+  list.
+- **A DPIA has not been done.** This is legally required under Article 35 for
+  special-category data about vulnerable people.
+- **Retention periods are placeholders.** The defaults in
+  [operations/data-retention.md](operations/data-retention.md) need agreeing
+  with the charity.
+- **ADR-007 needs trustee sign-off.** All workers can read all cases; that is
+  a decision someone has to own.
+- **No restore has been run yet.** An untested backup is not a backup.
+- **Password reset does not exist.** A worker who forgets their password needs
+  an admin with database access.
+
+### Tailwind Build Step
+
+Tailwind is now served from this app rather than a CDN, but it still compiles
+styles in the browser. That forces one relaxation in the Content Security
+Policy (`style-src 'unsafe-inline'`). A build-time Tailwind step would close it
+and make pages faster.
+
+### Password Reset
+
+A worker who forgets their password still needs an admin with database access.
+Self-service reset needs an email sending route, which the app does not have.
 
 ### Client Review
 

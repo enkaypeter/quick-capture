@@ -5,10 +5,33 @@ from flask import Response, render_template, request, flash, redirect, url_for, 
 from flask_login import login_required, current_user
 
 from app.models.case_interaction import InteractionTagType
+from app.services.access_log_service import AccessAction, AccessLogService
 from app.services.case_service import CaseService
+from app.services.retention_service import REASON_ERASURE_REQUEST, RetentionService
 from app.views import cases_bp
+from app.views.auth import admin_required
 
 case_service = CaseService()
+
+
+def _record_access(action, case_id=None, resource=None):
+    """Record that the signed-in user read something (blocker 10).
+
+    Access logging must never stop a worker from reading a case, so failures
+    here are swallowed rather than surfaced. A dropped log line is bad; a
+    frontline worker blocked from a risk assessment is worse.
+    """
+    try:
+        AccessLogService.from_config(current_app.config).record(
+            user_id=current_user.id,
+            action=action,
+            case_id=case_id,
+            resource=resource,
+            ip_address=request.remote_addr,
+            user_agent=request.headers.get("User-Agent"),
+        )
+    except Exception:  # pragma: no cover - defensive
+        current_app.logger.exception("Failed to record access log entry")
 
 
 @cases_bp.route("/")
@@ -31,6 +54,10 @@ def service_worker():
 def list_cases():
     """Dashboard view - list all active team-visible cases."""
     query = request.args.get("q", "").strip()
+    if query:
+        # The search term itself is not stored: it is often a person's name,
+        # and the access log should not become a second copy of case data.
+        _record_access(AccessAction.SEARCHED)
     cases = case_service.search_cases(query) if query else case_service.get_cases_for_user(current_user.id)
     follow_ups = case_service.get_upcoming_follow_ups()
     return render_template("cases/list.html", cases=cases, query=query, follow_ups=follow_ups)
@@ -123,6 +150,8 @@ def view_case(case_id):
     if not case or case.archived_at:
         flash("Case not found.", category="error")
         return redirect(url_for("cases.list_cases"))
+
+    _record_access(AccessAction.VIEWED_CASE, case_id=case.id)
 
     notes = case_service.get_notes_for_case(case_id)
     interactions = case_service.get_interactions_for_case(case_id)
@@ -407,6 +436,8 @@ def audit_trail(case_id):
     if not case or case.archived_at:
         return jsonify({"error": "Case not found"}), 404
 
+    _record_access(AccessAction.VIEWED_AUDIT_TRAIL, case_id=case.id)
+
     audit_service = AuditService()
     entries = audit_service.get_audit_trail(case_id)
 
@@ -539,6 +570,12 @@ def download_attachment(attachment_id):
         flash("Attachment not found.", category="error")
         return redirect(url_for("cases.list_cases"))
 
+    _record_access(
+        AccessAction.DOWNLOADED_ATTACHMENT,
+        case_id=case.id,
+        resource=f"attachment:{attachment.id}",
+    )
+
     directory = current_app.config["UPLOAD_FOLDER"]
     return send_from_directory(
         directory,
@@ -557,6 +594,10 @@ def reports():
 @cases_bp.route("/reports/export.csv")
 @login_required
 def reports_export():
+    # An export lifts every active case out of the system in one file, which
+    # makes it the single most sensitive read in the app.
+    _record_access(AccessAction.EXPORTED_REPORT)
+
     output = StringIO()
     writer = csv.writer(output)
     writer.writerow(["case_identifier", "case_name", "interaction_date", "worker", "tags", "outcome", "risk_rating", "current_situation"])
@@ -653,3 +694,81 @@ def autosuggest_location():
         return jsonify({"error": error}), 502
 
     return jsonify({"suggestions": suggestions})
+
+
+# --- Permanent erasure and access history (blockers 10 and 11) ----------
+
+
+@cases_bp.route("/cases/<int:case_id>/access-log", methods=["GET"])
+@login_required
+def case_access_log(case_id):
+    """Who has read this case (JSON API).
+
+    Visible to every signed-in worker, not just admins: openness about who is
+    reading a record is part of what makes team-wide visibility acceptable.
+    """
+    case = case_service.get_case(case_id)
+    if not case:
+        return jsonify({"error": "Case not found"}), 404
+
+    entries = AccessLogService.from_config(current_app.config).get_for_case(case_id)
+
+    return jsonify({
+        "entries": [
+            {
+                "id": entry.id,
+                "action": entry.action,
+                "resource": entry.resource,
+                "user": entry.user.first_name if entry.user else "Unknown",
+                "timestamp": (
+                    entry.created_at.isoformat() + "Z" if entry.created_at else None
+                ),
+            }
+            for entry in entries
+        ]
+    })
+
+
+@cases_bp.route("/cases/<int:case_id>/purge", methods=["POST"])
+@admin_required
+def purge_case(case_id):
+    """Permanently erase a case, its files and its logs.
+
+    Admin-only and irreversible. Archiving (the normal delete) remains the
+    default; this exists so an Article 17 erasure request can actually be
+    satisfied. The confirmation requires typing the case identifier, because
+    an accidental click here destroys a record with no undo.
+    """
+    case = case_service.get_case(case_id)
+    if not case:
+        flash("Case not found.", category="error")
+        return redirect(url_for("cases.list_cases"))
+
+    confirmation = request.form.get("confirm_identifier", "").strip()
+    if confirmation != case.identifier:
+        flash(
+            f"Type the case identifier ({case.identifier}) to confirm permanent "
+            "erasure.",
+            category="error",
+        )
+        return redirect(url_for("cases.view_case", case_id=case_id))
+
+    reason = request.form.get("reason", "").strip() or REASON_ERASURE_REQUEST
+    result = RetentionService(current_app.config["UPLOAD_FOLDER"]).purge_case(
+        case, reason=reason, requested_by_user_id=current_user.id
+    )
+
+    flash(
+        f"Case {result.case_identifier} permanently erased "
+        f"({result.records_deleted} record(s), {result.files_deleted} file(s)).",
+        category="success",
+    )
+    return redirect(url_for("cases.list_cases"))
+
+
+@cases_bp.route("/erasure-log", methods=["GET"])
+@admin_required
+def erasure_log():
+    """The record of what has been permanently erased and why."""
+    service = RetentionService(current_app.config["UPLOAD_FOLDER"])
+    return render_template("cases/erasure_log.html", entries=service.get_erasure_log())

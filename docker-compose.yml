@@ -1,3 +1,13 @@
+# LOCAL DEVELOPMENT ONLY. Not a production deployment.
+#
+# This file exists so a developer can run the web app and the transcription
+# service together with one command. It has no TLS, no backups, no secret
+# management and no process supervision beyond restart policies.
+#
+# Production requirements are in docs/operations/deployment.md.
+# docker-compose.staging.yml was removed because it was being treated as a
+# production deployment when it was never one.
+
 services:
   web:
     container_name: quickcapture-web

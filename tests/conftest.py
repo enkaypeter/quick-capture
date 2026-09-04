@@ -1,5 +1,6 @@
 import re
 
+import pyotp
 import pytest
 
 from app import create_app
@@ -51,3 +52,39 @@ def login(client, email, password="password123"):
         data={"csrf_token": token, "email": email, "password": password},
         follow_redirects=True,
     )
+
+
+def enrol_mfa(client, email):
+    """Complete TOTP enrolment for the signed-in user, as the UI would.
+
+    Admin accounts are redirected to /mfa/setup until they enrol (blocker 8),
+    so tests that exercise admin pages have to get through enrolment first.
+    This drives the real two-step flow rather than setting the flag directly,
+    which keeps it honest about what a user actually has to do.
+    """
+    from app.models.user import User
+
+    token = csrf_token(client, "/mfa/setup")
+    user = User.query.filter_by(email=email).one()
+    code = pyotp.TOTP(user.totp_secret).now()
+
+    return client.post(
+        "/mfa/setup",
+        data={"csrf_token": token, "code": code},
+        follow_redirects=True,
+    )
+
+
+def login_admin(client, email="demo@quickcapture.local", password="demo-password-123"):
+    """Sign in as an admin and clear the mandatory MFA enrolment gate."""
+    login(client, email, password)
+    enrol_mfa(client, email)
+    return client.get("/dashboard", follow_redirects=True)
+
+
+def current_totp(email):
+    """The code an authenticator app would be showing for this user right now."""
+    from app.models.user import User
+
+    user = User.query.filter_by(email=email).one()
+    return pyotp.TOTP(user.totp_secret).now()

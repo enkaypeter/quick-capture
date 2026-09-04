@@ -285,16 +285,57 @@
             </div>
         </details>
 
-        <form method="POST" action="{{ url_for('cases.delete_case', case_id=case.id) }}" onsubmit="return confirm('Archive this case? It will be hidden from active lists but not deleted.')" class="pt-3">
+        <details class="border-t border-gray-200 pt-3">
+            <summary class="cursor-pointer text-sm font-medium text-gray-700">Who has read this case</summary>
+            <div class="mt-3">
+                <button type="button" id="access-log-btn" data-case-id="{{ case.id }}" class="rounded-lg border border-gray-300 px-3 py-1.5 text-sm text-gray-700 hover:bg-gray-50">Load reading history</button>
+                <ul id="access-log-entries" class="mt-3 space-y-2 hidden text-sm text-gray-600"></ul>
+                <p id="access-log-empty" class="hidden mt-3 text-sm text-gray-500">Nobody has opened this case yet.</p>
+            </div>
+        </details>
+
+        <form method="POST" action="{{ url_for('cases.delete_case', case_id=case.id) }}" data-confirm="Archive this case? It will be hidden from active lists but not deleted." class="pt-3">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
             <button type="submit" class="rounded-lg border border-red-200 px-4 py-2 text-sm font-medium text-red-600 hover:bg-red-50">Archive Case</button>
         </form>
+
+        {% if current_user.role == 'admin' %}
+        <details class="mt-4 rounded-lg border border-red-200 bg-red-50 p-4">
+            <summary class="cursor-pointer text-sm font-medium text-red-800">Permanently erase this case</summary>
+            <p class="mt-3 text-sm text-red-800">
+                This destroys the case, its notes, documents, voice recordings and
+                history. There is no undo. Use it only for a data protection
+                erasure request, or a record created in error — and check with the
+                charity's data protection lead first.
+            </p>
+            <form method="POST" action="{{ url_for('cases.purge_case', case_id=case.id) }}"
+                  data-confirm="Permanently erase {{ case.identifier }}? This cannot be undone."
+                  class="mt-3 space-y-3">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <div>
+                    <label for="confirm_identifier" class="block text-sm font-medium text-red-800 mb-1">
+                        Type <code class="font-mono">{{ case.identifier }}</code> to confirm
+                    </label>
+                    <input type="text" id="confirm_identifier" name="confirm_identifier" autocomplete="off"
+                           class="w-64 rounded-lg border border-red-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+                </div>
+                <div>
+                    <label for="reason" class="block text-sm font-medium text-red-800 mb-1">Reason (recorded in the erasure log)</label>
+                    <input type="text" id="reason" name="reason" maxlength="200" placeholder="erasure_request"
+                           class="w-full max-w-md rounded-lg border border-red-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-red-500" />
+                </div>
+                <button type="submit" class="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white hover:bg-red-700">
+                    Permanently erase
+                </button>
+            </form>
+        </details>
+        {% endif %}
     </div>
 </div>
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
     (function() {
         var caseId = {{ case.id }};
         var csrfHeaders = window.quickCaptureCsrfHeaders();

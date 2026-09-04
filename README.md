@@ -1,11 +1,15 @@
 Quick Capture [MVP] is a case management tool for Simon on the Streets social workers. It enables rapid recording of interactions with prospects — capturing names, locations, notes, quick tags, documents, follow-ups and voice recordings with minimal friction.
 
-The system is composed of two services running in Docker containers on the same network:
+The system is composed of two services:
 
 1. **Web Application** — Flask-based MVC app serving the UI and handling business logic
 2. **Transcription Service** — whisper.cpp HTTP server that converts audio recordings to text
 
+Voice notes are transcribed on infrastructure the charity controls. Recordings of vulnerable people are never sent to a third-party AI service.
+
 Please refer to `docs/architecture.md` for the full system architecture.
+
+> **Docker is for local development only.** The `Dockerfile` and `docker-compose.yml` exist so a developer can run both services with one command. They are not a production deployment and must not be used to host live data. Production requirements are in [docs/operations/deployment.md](docs/operations/deployment.md).
 
 ## Documentation
 
@@ -13,6 +17,14 @@ Please refer to `docs/architecture.md` for the full system architecture.
 - [Frontline worker guide](docs/user-guides/frontline-worker.md)
 - [Admin guide](docs/user-guides/admin.md)
 - [Architecture](docs/architecture.md)
+
+### Operations
+
+- [Deployment](docs/operations/deployment.md) — what a production host must provide
+- [Security controls](docs/operations/security-controls.md) — what protects the system, and how to verify it
+- [Backups and restore](docs/operations/backups.md)
+- [Field-level encryption](docs/operations/encryption.md) — including key rotation
+- [Data retention and erasure](docs/operations/data-retention.md)
 
 ## Run locally
 
@@ -28,6 +40,8 @@ The local app seeds a demo admin account by default:
 
 - Email: `demo@quickcapture.local`
 - Password: `demo-password-123`
+
+Because the demo account is an admin, the first sign-in will ask you to set up two-factor authentication before you can go anywhere else. Any TOTP app works — scan the QR code, enter the 6-digit code, and save the recovery codes it shows you.
 
 The local demo account also creates 10 fictional demo cases with varied statuses, risk levels, notes, interaction tags, follow-ups and sample documents. Restarting the app will not create copies of these records.
 
@@ -45,16 +59,20 @@ To start with an empty local case list, run with:
 DEMO_CASES_ENABLED=false .venv/bin/python main.py
 ```
 
-## Run with Docker
+## Run with Docker (local development)
 
 ```bash
 cp .env.example .env
 docker compose up --build
 ```
 
+This starts the app and the transcription service together. It is a development convenience only — see the note above.
+
 ## Invite codes
 
 New accounts require an invite code. For local development, the bootstrap invite code is `sots-dev-invite`.
+
+> This code is published here, so it must never be accepted in production. The production configuration has no default invite code, and the app refuses to start if `BOOTSTRAP_INVITE_ENABLED` is on with this value.
 
 Admins can create operational invite codes in the app:
 
@@ -68,6 +86,18 @@ Database-backed invite codes are marked `Used` when their use limit is reached. 
 
 For production, keep `DEMO_ACCOUNT_ENABLED=false` and `BOOTSTRAP_INVITE_ENABLED=false` unless you are deliberately bootstrapping first access. Create named admin accounts and use `/invite-codes` for ongoing distribution.
 
+## Security
+
+Every signed-in worker can read every active case, including risk and mental health notes. This is a deliberate decision recorded in [ADR-007](docs/adrs/007-team-wide-case-visibility.md), and it needs trustee sign-off before live data is entered.
+
+The controls protecting the system — login throttling, mandatory MFA for admins, field-level encryption, access logging, a Content Security Policy, retention and erasure — are described in [docs/operations/security-controls.md](docs/operations/security-controls.md) and were introduced by [ADR-008](docs/adrs/008-security-controls-for-production.md).
+
+Generate production secrets with:
+
+```bash
+.venv/bin/python -m scripts.generate_keys
+```
+
 ## Usage
 
 - `Home` shows active cases, search, risk status, and upcoming follow-ups.
@@ -76,7 +106,18 @@ For production, keep `DEMO_ACCOUNT_ENABLED=false` and `BOOTSTRAP_INVITE_ENABLED=
 - Entering `Date of birth` automatically fills `Age`; age can still be entered manually if DOB is unknown. When DOB is present, the saved age is recalculated from DOB on create and edit.
 - Case detail pages are one-page records with collapsible sections for quick capture, history, identity, status and consent, risk, follow-ups, documents, reporting fields, legacy notes, and activity.
 - `Reports` summarises captured interaction tags and exports CSV.
-- `Invite Codes` is visible to admins for access management.
+- `Security` is where any user manages their own two-factor authentication.
+- `Invite Codes`, `Accounts` and the erasure log are visible to admins for access management.
+
+## Operational scripts
+
+```bash
+.venv/bin/python -m scripts.generate_keys                        # production secrets
+.venv/bin/python -m scripts.backup --destination /var/backups    # encrypted backup
+.venv/bin/python -m scripts.restore --archive <file> --target <dir>
+.venv/bin/python -m scripts.retention                            # dry run
+.venv/bin/python -m scripts.retention --apply                    # apply retention
+```
 
 ## Test
 

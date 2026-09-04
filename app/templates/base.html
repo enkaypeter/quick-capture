@@ -5,26 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{% block title %}Simon on the Streets{% endblock %}</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <script>
-        tailwind.config = {
-            theme: {
-                extend: {
-                    colors: {
-                        brand: {
-                            50: '#f0f9ff',
-                            100: '#e0f2fe',
-                            500: '#0ea5e9',
-                            600: '#0284c7',
-                            700: '#0369a1',
-                            800: '#075985',
-                            900: '#1e3a5f',
-                        }
-                    }
-                }
-            }
-        }
-    </script>
+    <script src="{{ url_for('static', filename='js/tailwind-config.js') }}"></script>
+    <script src="{{ url_for('static', filename='vendor/tailwind.min.js') }}"></script>
     {% block head %}{% endblock %}
 </head>
 <body class="h-full bg-gray-50 text-gray-900">
@@ -45,7 +27,9 @@
                     <a href="{{ url_for('cases.reports') }}" class="text-gray-300 hover:text-white text-sm">Reports</a>
                     {% if current_user.role == 'admin' %}
                     <a href="{{ url_for('auth.invite_codes') }}" class="text-gray-300 hover:text-white text-sm">Invite Codes</a>
+                    <a href="{{ url_for('auth.users') }}" class="text-gray-300 hover:text-white text-sm">Accounts</a>
                     {% endif %}
+                    <a href="{{ url_for('auth.mfa_status') }}" class="text-gray-300 hover:text-white text-sm">Security</a>
                     <a href="{{ url_for('auth.logout') }}" class="text-gray-300 hover:text-white text-sm">Logout</a>
                     <span class="text-sm text-gray-400">{{ current_user.first_name }}</span>
                     {% else %}
@@ -79,7 +63,9 @@
                 <a href="{{ url_for('cases.reports') }}" class="block text-gray-300 hover:text-white text-sm py-2">Reports</a>
                 {% if current_user.role == 'admin' %}
                 <a href="{{ url_for('auth.invite_codes') }}" class="block text-gray-300 hover:text-white text-sm py-2">Invite Codes</a>
+                <a href="{{ url_for('auth.users') }}" class="block text-gray-300 hover:text-white text-sm py-2">Accounts</a>
                 {% endif %}
+                <a href="{{ url_for('auth.mfa_status') }}" class="block text-gray-300 hover:text-white text-sm py-2">Security</a>
                 <a href="{{ url_for('auth.logout') }}" class="block text-gray-300 hover:text-white text-sm py-2">Logout</a>
                 {% else %}
                 <a href="{{ url_for('auth.login') }}" class="block text-gray-300 hover:text-white text-sm py-2">Login</a>
@@ -98,7 +84,7 @@
             {% if category == 'error' %}bg-red-50 text-red-800 border border-red-200
             {% else %}bg-green-50 text-green-800 border border-green-200{% endif %}">
             <span>{{ message }}</span>
-            <button onclick="this.parentElement.remove()" class="ml-4 text-lg leading-none opacity-60 hover:opacity-100">&times;</button>
+            <button type="button" data-dismiss-flash class="ml-4 text-lg leading-none opacity-60 hover:opacity-100">&times;</button>
         </div>
         {% endfor %}
         {% endif %}
@@ -111,7 +97,7 @@
     </main>
 
     <script src="{{ url_for('static', filename='js/app.js') }}"></script>
-    <script>
+    <script nonce="{{ csp_nonce }}">
         // Mobile menu toggle
         (function() {
             var btn = document.getElementById('mobile-menu-btn');

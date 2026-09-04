@@ -2,7 +2,7 @@
 
 Quick Capture [MVP] is a case management tool for Simon on the Streets social workers. It enables rapid recording of interactions with prospects — capturing names, locations, notes, structured interaction tags, documents, follow-ups and voice recordings with minimal friction.
 
-The system is composed of two services running in Docker containers on the same network:
+The system is composed of two services that run alongside each other, with the web app reaching the transcriber over a private network address:
 
 1. **Web Application** — Flask-based MVC app serving the UI and handling business logic
 2. **Transcription Service** — whisper.cpp HTTP server that converts audio recordings to text
@@ -17,7 +17,7 @@ graph TB
         MIC[MediaRecorder API]
     end
 
-    subgraph Docker["Docker Network"]
+    subgraph Host["Application Host (private network)"]
         subgraph Web["Web Service (Flask)"]
             VIEWS[Views / Routes]
             SERVICES[Services Layer]
@@ -75,8 +75,9 @@ graph LR
 ├── main.py                        Entry point
 ├── config.py                      App configuration (Dev/Prod)
 ├── requirements.txt               Python dependencies (pinned)
-├── Dockerfile                     Web service container
-├── docker-compose.yml             Multi-service orchestration
+├── Dockerfile                     Local development container
+├── docker-compose.yml             Local development orchestration
+├── scripts/                       Backup, restore, retention, key generation
 ├── .env                           Environment variables (all config)
 ├── app/
 │   ├── __init__.py                App factory
@@ -315,6 +316,13 @@ The audit trail is viewable on the case detail page via a collapsible "Activity"
 | GET/POST | `/sign-up` | Registration form |
 | GET/POST | `/invite-codes` | Admin invite-code list and creation |
 | POST | `/invite-codes/<id>/deny` | Admin denial of an unused invite code |
+| GET | `/users` | Admin account list, showing 2FA and lockout state |
+| POST | `/users/<id>/unlock` | Admin clears a login lockout |
+| GET/POST | `/mfa/setup` | TOTP enrolment: QR code, then confirmation |
+| GET/POST | `/mfa/verify` | Second login step for a user with 2FA on |
+| GET | `/mfa/status` | Own 2FA state and unused recovery code count |
+| GET | `/mfa/recovery-codes` | Shows freshly issued recovery codes, once |
+| POST | `/mfa/recovery-codes/regenerate` | Issue new recovery codes |
 
 ### Cases (`cases_bp`)
 
@@ -329,7 +337,9 @@ The audit trail is viewable on the case detail page via a collapsible "Activity"
 | POST | `/cases/<id>/category` | Update category + NI number (AJAX) |
 | GET | `/cases/<id>/actions` | Get actions for case (AJAX) |
 | POST | `/cases/<id>/actions` | Update actions for case (AJAX) |
-| GET | `/cases/<id>/audit` | Get audit trail (AJAX) |
+| GET | `/cases/<id>/audit` | Get audit trail — who changed what (AJAX) |
+| GET | `/cases/<id>/access-log` | Get access history — who read it (AJAX) |
+| POST | `/cases/<id>/purge` | Admin permanent erasure, confirmed by identifier |
 | POST | `/cases/<id>/notes` | Add note (manual + voice transcript) |
 | POST | `/cases/<id>/notes/<id>/edit` | Edit note content (AJAX) |
 | POST | `/cases/<id>/notes/<id>/delete` | Delete note |
@@ -340,6 +350,7 @@ The audit trail is viewable on the case detail page via a collapsible "Activity"
 | POST | `/cases/<id>/attachments` | Upload a case document |
 | GET | `/reports` | Reporting dashboard |
 | GET | `/reports/export.csv` | CSV export of reporting fields |
+| GET | `/erasure-log` | Admin record of permanently erased cases |
 | GET | `/service-worker.js` | Offline shell service worker |
 | POST | `/transcribe` | Transcribe audio file (AJAX) |
 | POST | `/location/autosuggest` | What3Words autosuggest (AJAX) |
@@ -488,38 +499,71 @@ A 30-second audio clip transcribes in approximately 3–5 seconds on a modern CP
 
 ## Deployment
 
-### Docker Compose
+### Docker is for local development only
 
-Both services run in the same Docker network. The transcriber is only accessible internally (no published ports). The web service uses gunicorn with `--preload` to avoid SQLite locking issues with multiple workers.
+The `Dockerfile` and `docker-compose.yml` exist so a developer can run both
+services with one command. **They are not a production deployment** — there is
+no TLS, no backup, no secret management and no process supervision. Live case
+data must not be hosted this way.
 
 ```bash
-# Build and start
+# Local development only
 docker compose up --build
 
 # The web app is available at http://localhost:5001
 # The transcriber is internal-only (not exposed to host)
 ```
 
-### Environment Variables (`.env`)
+`docker-compose.staging.yml` has been removed. It described a container
+attached to an external reverse-proxy network and was the closest thing the
+project had to a production deployment, which invited it to be used as one.
+
+### Production
+
+The hosting platform has not yet been chosen.
+[operations/deployment.md](operations/deployment.md) states what any production
+host must provide: a supervised gunicorn process, TLS with correct forwarded
+headers, a privately reachable transcription service, encrypted storage,
+managed secrets, off-site backups, a scheduled retention job and log handling.
+
+Production also runs a startup configuration guard
+(`app/security/config_guard.py`) that refuses to start on a missing or default
+`SECRET_KEY`, missing encryption keys, insecure session cookies, demo seeding,
+or the development invite code. This is a hard failure by design: an app
+running on a publicly known secret key looks perfectly healthy.
+
+### Environment Variables (`.env` locally, secret store in production)
 
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `FLASK_ENV` | `production` | `development` or `production` |
-| `SECRET_KEY` | `change-me-in-production` | Flask session secret |
+| `SECRET_KEY` | dev default locally, **required** in production | Flask session secret |
+| `FIELD_ENCRYPTION_KEYS` | (empty) | Comma-separated Fernet keys for encrypted fields. **Required** in production |
+| `SESSION_COOKIE_SECURE` | `false` locally, `true` in production | HTTPS-only session cookie |
+| `SESSION_IDLE_MINUTES` | `30` | Idle session timeout |
+| `MFA_REQUIRED_ROLES` | `admin` | Roles that must enrol in TOTP |
+| `BACKUP_ENCRYPTION_KEY` | (empty) | Fernet key for backup archives |
+| `RETENTION_ARCHIVED_CASE_DAYS` | `2190` | Retention for archived cases |
 | `TRANSCRIPTION_URL` | `http://transcriber:8080` | Internal URL of transcriber |
 | `W3W_API_KEY` | (empty) | What3Words API key for autosuggest |
 | `DEMO_ACCOUNT_ENABLED` | `false` in production, `true` locally | Seeds the local demo admin account |
 | `DEMO_CASES_ENABLED` | `false` in production, `true` locally | Seeds fictional demo cases for local demonstration |
 | `BOOTSTRAP_INVITE_ENABLED` | `false` in production, `true` locally | Enables the configured bootstrap signup invite code |
 
-All environment configuration is managed via the `.env` file, loaded by Docker Compose's `env_file` directive.
+Locally, configuration comes from `.env` (see `.env.example`). In production it comes from the host's secret store or a root-owned environment file — see `.env.production.example`. The full list is in [operations/deployment.md](operations/deployment.md).
 
-### Volumes
+### Persistent state
 
-| Volume | Purpose |
-|--------|---------|
-| `db_data` | Persists SQLite database across container restarts |
-| `uploads_data` | Persists uploaded voice notes |
+Two things must survive a restart, be encrypted at rest and be backed up:
+
+| Path | Contents |
+|------|----------|
+| `instance/database.db` | Cases, notes, audit, access and erasure logs |
+| `uploads/` | Attachments and voice recordings |
+
+Locally these are Docker volumes (`db_data`, `uploads_data`). In production they
+are directories on encrypted storage, backed up nightly by
+`scripts/backup.py`.
 
 ### Production Notes
 
@@ -537,7 +581,12 @@ All environment configuration is managed via the `.env` file, loaded by Docker C
 | Backend W3W proxy | API key stays server-side; client only sends partial address to our own endpoint |
 | W3W Free plan (autosuggest only) | Sufficient for address entry with autocomplete; GPS handles coordinate capture |
 | whisper.cpp static build | Lowest resource footprint: no Python runtime, no shared library issues, single binary |
-| Tailwind via CDN | No build step required for the MVP. Fast iteration without Node tooling |
+| Tailwind vendored locally | A CDN script tag has full DOM access to pages showing NI numbers and mental health notes. Vendored to `static/vendor/`, keeping the no-build-step benefit without the third-party access |
+| Content Security Policy with nonces | Pins `script-src` to this origin plus a per-request nonce, so an injected script cannot read case data |
+| Field-level encryption on three columns | Volume encryption stops disk theft; it does nothing on a running host. Applied only to fields nothing queries, so search still works |
+| Database-backed login throttling | Production runs several gunicorn workers, so an in-memory counter would give an attacker one allowance per worker |
+| Separate access log table | Reads vastly outnumber writes and would drown the change history; a CSV export also belongs to no single case |
+| Startup configuration guard | A misconfiguration that only writes a log line reaches production. Refusing to boot does not |
 | Sanitised HTML notes | Allows structured text while stripping unsafe markup before render |
 | CSRF protection | Protects forms and AJAX state changes |
 | Invite codes | Keeps signup controlled without adding a full user-admin module |
@@ -562,6 +611,8 @@ Detailed rationale for significant decisions is documented in `/docs/adrs/`:
 - [ADR-004: Category-Based Contextual Fields](adrs/004-category-contextual-fields.md) — actions for caseload, NI for client
 - [ADR-005: Voice Notes on Existing Cases](adrs/005-voice-notes-on-existing-cases.md) — transcribe-only (no audio persistence)
 - [ADR-006: Lightweight Migrations](adrs/006-lightweight-migrations.md) — startup schema migrations for SQLite
+- [ADR-007: Team-Wide Case Visibility](adrs/007-team-wide-case-visibility.md) — all workers see all cases, and why
+- [ADR-008: Security Controls for Production](adrs/008-security-controls-for-production.md) — the eleven pre-production blockers and how each is closed
 
 ## Future Considerations
 
@@ -569,6 +620,8 @@ Detailed rationale for significant decisions is documented in `/docs/adrs/`:
 - **Real-time collaboration** — WebSocket updates when multiple workers view the same case
 - **Offline support** — extend the service worker to queue writes when connectivity is poor
 - **W3W Business plan** — upgrade to enable GPS → what3words auto-conversion
-- **NI number encryption** — encrypt PII fields at rest
 - **Audit archival** — archive audit entries older than N months to manage table growth
-- **User administration** — add admin screens for role changes and account deactivation
+- **User administration** — role changes and account deactivation (the `Accounts` screen currently lists accounts and unlocks them)
+- **Tailwind build step** — a static stylesheet would remove the remaining `style-src 'unsafe-inline'` relaxation
+- **Password reset** — needs an email sending route the app does not yet have
+- **Single sign-on** — would remove password handling entirely

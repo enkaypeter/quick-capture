@@ -36,11 +36,16 @@ def create_app(config_name: str = None) -> Flask:
     def load_user(user_id):
         return User.query.get(int(user_id))
 
+    from app import models  # noqa: F401
+
     # Register blueprints
     from app.views import auth_bp, cases_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(cases_bp)
+
+    from app.services.csrf_service import init_csrf
+    init_csrf(app)
 
     # Create database tables and set SQLite WAL mode
     with app.app_context():
@@ -58,5 +63,9 @@ def create_app(config_name: str = None) -> Flask:
         # Run migrations for existing databases (adds new columns/tables)
         from app.migrations import run_migrations
         run_migrations()
+
+        from app.services.seed_service import seed_demo_account, seed_demo_cases
+        demo_user = seed_demo_account()
+        seed_demo_cases(demo_user)
 
     return app

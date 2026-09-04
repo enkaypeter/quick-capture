@@ -1,0 +1,44 @@
+{% extends "base.html" %}
+{% block title %}Reports - Simon on the Streets{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-3xl">
+    <div class="flex items-center justify-between gap-3 mb-6">
+        <div>
+            <h1 class="text-2xl font-bold">Reports</h1>
+            <p class="text-sm text-gray-500 mt-1">Structured counts from active cases and interactions.</p>
+        </div>
+        <a href="{{ url_for('cases.reports_export') }}" class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700">Export CSV</a>
+    </div>
+
+    <div class="grid gap-3 sm:grid-cols-2 mb-6">
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+            <p class="text-sm text-gray-500">Active cases</p>
+            <p class="mt-1 text-3xl font-bold">{{ summary.total_cases }}</p>
+        </div>
+        <div class="rounded-lg border border-gray-200 bg-white p-4">
+            <p class="text-sm text-gray-500">Interactions</p>
+            <p class="mt-1 text-3xl font-bold">{{ summary.total_interactions }}</p>
+        </div>
+    </div>
+
+    <div class="grid gap-4">
+        {% for title, data in [('Case status', summary.status_counts), ('Risk', summary.risk_counts), ('Current situation', summary.situation_counts), ('Quick tags', summary.tag_counts)] %}
+        <section class="rounded-lg border border-gray-200 bg-white p-4">
+            <h2 class="text-base font-semibold text-gray-900 mb-3">{{ title }}</h2>
+            {% if data %}
+            <div class="space-y-2">
+                {% for label, count in data.items() %}
+                <div class="flex items-center justify-between text-sm">
+                    <span>{{ label|replace('_', ' ') }}</span>
+                    <span class="font-semibold">{{ count }}</span>
+                </div>
+                {% endfor %}
+            </div>
+            {% else %}
+            <p class="text-sm text-gray-500">No data yet.</p>
+            {% endif %}
+        </section>
+        {% endfor %}
+    </div>
+</div>
+{% endblock %}

@@ -1,6 +1,6 @@
 ## Overview
 
-Quick Capture [MVP] is a case management tool for Simon on the Streets social workers. It enables rapid recording of interactions with prospects — capturing names, locations, notes, and voice recordings with minimal friction.
+Quick Capture [MVP] is a case management tool for Simon on the Streets social workers. It enables rapid recording of interactions with prospects — capturing names, locations, notes, structured interaction tags, documents, follow-ups and voice recordings with minimal friction.
 
 The system is composed of two services running in Docker containers on the same network:
 
@@ -82,10 +82,14 @@ graph LR
 │   ├── __init__.py                App factory
 │   ├── extensions.py              SQLAlchemy, LoginManager
 │   ├── models/
-│   │   ├── user.py                User entity
-│   │   ├── case.py                Case entity (+ ni_number, actions relationship)
+│   │   ├── user.py                User entity with worker/admin roles
+│   │   ├── case.py                Case entity with identity, risk, consent and status fields
 │   │   ├── case_note.py           CaseNote entity
 │   │   ├── case_action.py         CaseAction entity (caseload actions)
+│   │   ├── case_interaction.py    Interaction timeline + reporting tags
+│   │   ├── follow_up_task.py      Follow-up tasks
+│   │   ├── case_attachment.py     Uploaded case documents
+│   │   ├── invite_code.py         Admin-created signup invite codes
 │   │   └── audit_log.py           AuditLog entity (change history)
 │   ├── repositories/
 │   │   ├── base.py                Abstract base repository
@@ -95,15 +99,19 @@ graph LR
 │   │   ├── case_action_repository.py Action data access
 │   │   └── audit_log_repository.py  Audit log data access
 │   ├── services/
-│   │   ├── auth_service.py        Authentication logic
-│   │   ├── case_service.py        Case + notes + actions business logic
+│   │   ├── auth_service.py        Authentication and invite validation
+│   │   ├── invite_service.py      Invite creation, consumption and denial
+│   │   ├── seed_service.py        Local demo admin account seeding
+│   │   ├── case_service.py        Case, notes, interactions, follow-ups and files
+│   │   ├── html_service.py        HTML sanitisation
+│   │   ├── csrf_service.py        CSRF protection for forms and AJAX
 │   │   ├── identifier_service.py  Auto-ID generation
 │   │   ├── transcription_client.py HTTP client for whisper.cpp
 │   │   ├── w3w_service.py         What3Words API client (autosuggest)
 │   │   └── audit_service.py       Audit trail logging
 │   ├── views/
-│   │   ├── auth.py                Login / signup / logout
-│   │   └── cases.py               Case CRUD + notes + actions + transcription + location
+│   │   ├── auth.py                Login / signup / logout / invite management
+│   │   └── cases.py               Case CRUD + interactions + reports + transcription + location
 │   ├── templates/                 Jinja2 + Tailwind templates
 │   └── static/                    JS, CSS
 ├── services/
@@ -126,9 +134,14 @@ graph LR
 ```mermaid
 erDiagram
     USER ||--o{ CASE : creates
+    USER ||--o{ CASE : assigned_to
     USER ||--o{ AUDIT_LOG : performs
+    USER ||--o{ INVITE_CODE : creates
     CASE ||--o{ CASE_NOTE : has
     CASE ||--o{ CASE_ACTION : has
+    CASE ||--o{ CASE_INTERACTION : has
+    CASE ||--o{ FOLLOW_UP_TASK : has
+    CASE ||--o{ CASE_ATTACHMENT : has
     CASE ||--o{ AUDIT_LOG : tracked_by
 
     USER {
@@ -136,6 +149,7 @@ erDiagram
         string email UK
         string password
         string first_name
+        string role
         datetime created_at
     }
 
@@ -150,9 +164,20 @@ erDiagram
         string voice_note_path
         string category
         string ni_number
+        string date_of_birth
+        int age
+        string gender
+        text physical_description
+        string consent_status
+        string risk_rating
+        text risk_notes
+        text mental_health_notes
+        string current_situation
+        datetime archived_at
         datetime created_at
         datetime updated_at
         int user_id FK
+        int assigned_user_id FK
     }
 
     CASE_NOTE {
@@ -174,6 +199,37 @@ erDiagram
         int case_id FK
     }
 
+    CASE_INTERACTION {
+        int id PK
+        datetime occurred_at
+        text note_content
+        string outcome
+        string location_w3w
+        int case_id FK
+        int user_id FK
+    }
+
+    FOLLOW_UP_TASK {
+        int id PK
+        string title
+        string due_date
+        string status
+        int case_id FK
+        int created_by_user_id FK
+        int assigned_user_id FK
+    }
+
+    INVITE_CODE {
+        int id PK
+        string code UK
+        string label
+        string status
+        int max_uses
+        int uses
+        int created_by_user_id FK
+        int used_by_user_id FK
+    }
+
     AUDIT_LOG {
         int id PK
         string action
@@ -186,13 +242,25 @@ erDiagram
     }
 ```
 
-### Case Categories
+### Access Control
 
-| Category | Description | Contextual Requirements |
-|----------|-------------|------------------------|
-| `non-caseload` | Default. First-time interaction with limited information | None |
-| `caseload` | Ongoing engagement with verified information | Actions checklist (predefined + custom) |
-| `client` | Full client relationship established | National Insurance number (required) |
+Users have either `worker` or `admin` roles. Workers can view active team cases, create case records, add interactions, complete follow-ups, upload documents and use reporting views. Admins can also manage invite codes.
+
+Local development seeds a demo admin account when `DEMO_ACCOUNT_ENABLED=true`. When `DEMO_CASES_ENABLED=true`, the app also seeds 10 fictional demo cases under that account so a fresh local install can demonstrate case status, risk, notes, interaction tags, follow-ups, reports and document uploads. Demo case identifiers use the `DEMO-` prefix. Restarting the app does not create duplicate demo cases.
+
+Production disables the demo account and demo cases by default. Signup accepts either an enabled bootstrap invite code or an active database-backed invite code. Database invite codes are created by admins, can be limited to a defined number of uses, and can be denied before use.
+
+### Case Status Vocabulary
+
+The UI labels this field `Case status` while preserving the documented SOTS terms `Non-caseload`, `Caseload`, and `Client`.
+
+| Stored value | UI label | Description | Contextual Requirements |
+|--------------|----------|-------------|------------------------|
+| `non-caseload` | Non-caseload | Not currently on the active caseload | None |
+| `caseload` | Caseload | Actively supported by the team | Actions checklist (predefined + custom) |
+| `client` | Client | Formal client record with fuller identity details | National Insurance number (required) |
+
+Date of birth is treated as authoritative for age when present. The browser fills the `Age` field immediately after DOB entry, and the backend recalculates age from DOB during create/edit requests to avoid stale manual values. Age remains manually enterable when DOB is unknown.
 
 ### Predefined Actions (Caseload)
 
@@ -213,15 +281,16 @@ Custom actions can be added via free-text input with `action_type = "custom"`.
 
 | Source | Description |
 |--------|-------------|
-| `manual` | Written by the social worker via the WYSIWYG editor |
+| `manual` | Written by the social worker |
 | `transcription` | Auto-generated from voice note transcription. Flagged with `needs_review = true` |
 
 ### Note Creation Rules
 
-- A manual note is only created if the WYSIWYG editor contains meaningful text (empty tags like `<p><br></p>` or whitespace-only content are ignored)
+- A manual note is only created if it contains meaningful text
+- Stored note and interaction HTML is sanitised before rendering
 - A transcription note is only created if a voice transcript was successfully obtained before form submission
-- Notes are cascade-deleted when their parent case is deleted
 - Notes can be added with voice transcription on existing cases (not just during creation)
+- Cases are archived rather than deleted so identifiers, history and audit records remain intact
 
 ### Audit Trail
 
@@ -231,7 +300,7 @@ Every mutation to a case is logged in the `audit_logs` table:
 |--------|-------------|
 | `created` | Case created, note added |
 | `updated` | Field edited, category changed, note content edited, note reviewed, actions updated |
-| `deleted` | Case deleted, note deleted |
+| `deleted` | Case archived, note deleted |
 
 The audit trail is viewable on the case detail page via a collapsible "Activity" section.
 
@@ -244,6 +313,8 @@ The audit trail is viewable on the case detail page via a collapsible "Activity"
 | GET/POST | `/login` | Login form + authentication |
 | GET | `/logout` | Logout + redirect |
 | GET/POST | `/sign-up` | Registration form |
+| GET/POST | `/invite-codes` | Admin invite-code list and creation |
+| POST | `/invite-codes/<id>/deny` | Admin denial of an unused invite code |
 
 ### Cases (`cases_bp`)
 
@@ -254,7 +325,7 @@ The audit trail is viewable on the case detail page via a collapsible "Activity"
 | GET/POST | `/cases/new` | Create case form |
 | GET | `/cases/<id>` | Case detail with notes |
 | POST | `/cases/<id>/edit` | Update case fields (AJAX) |
-| POST | `/cases/<id>/delete` | Delete case |
+| POST | `/cases/<id>/delete` | Archive case |
 | POST | `/cases/<id>/category` | Update category + NI number (AJAX) |
 | GET | `/cases/<id>/actions` | Get actions for case (AJAX) |
 | POST | `/cases/<id>/actions` | Update actions for case (AJAX) |
@@ -263,6 +334,13 @@ The audit trail is viewable on the case detail page via a collapsible "Activity"
 | POST | `/cases/<id>/notes/<id>/edit` | Edit note content (AJAX) |
 | POST | `/cases/<id>/notes/<id>/delete` | Delete note |
 | POST | `/cases/<id>/notes/<id>/review` | Mark note reviewed (AJAX) |
+| POST | `/cases/<id>/interactions` | Add a structured interaction and reporting tags |
+| POST | `/cases/<id>/follow-ups` | Add a follow-up task |
+| POST | `/cases/<id>/follow-ups/<id>/complete` | Complete a follow-up task |
+| POST | `/cases/<id>/attachments` | Upload a case document |
+| GET | `/reports` | Reporting dashboard |
+| GET | `/reports/export.csv` | CSV export of reporting fields |
+| GET | `/service-worker.js` | Offline shell service worker |
 | POST | `/transcribe` | Transcribe audio file (AJAX) |
 | POST | `/location/autosuggest` | What3Words autosuggest (AJAX) |
 
@@ -333,9 +411,9 @@ The What3Words API key is stored server-side as the `W3W_API_KEY` environment va
 
 ## Inline Editing
 
-Case fields and notes are editable on the detail page:
+Case fields and notes are editable on the detail page, which is organised as one page with collapsible sections:
 
-**Editable:** full_name, phone_number, note content, category
+**Editable:** full_name, phone_number, note content, category and priority case fields
 **Not editable:** location, created_at, identifier
 
 The edit pattern uses click-to-reveal inputs with Save/Cancel controls. All edits are persisted via AJAX and logged to the audit trail. See [ADR-003](adrs/003-inline-editing.md).
@@ -430,6 +508,9 @@ docker compose up --build
 | `SECRET_KEY` | `change-me-in-production` | Flask session secret |
 | `TRANSCRIPTION_URL` | `http://transcriber:8080` | Internal URL of transcriber |
 | `W3W_API_KEY` | (empty) | What3Words API key for autosuggest |
+| `DEMO_ACCOUNT_ENABLED` | `false` in production, `true` locally | Seeds the local demo admin account |
+| `DEMO_CASES_ENABLED` | `false` in production, `true` locally | Seeds fictional demo cases for local demonstration |
+| `BOOTSTRAP_INVITE_ENABLED` | `false` in production, `true` locally | Enables the configured bootstrap signup invite code |
 
 All environment configuration is managed via the `.env` file, loaded by Docker Compose's `env_file` directive.
 
@@ -457,14 +538,18 @@ All environment configuration is managed via the `.env` file, loaded by Docker C
 | W3W Free plan (autosuggest only) | Sufficient for address entry with autocomplete; GPS handles coordinate capture |
 | whisper.cpp static build | Lowest resource footprint: no Python runtime, no shared library issues, single binary |
 | Tailwind via CDN | No build step required for the MVP. Fast iteration without Node tooling |
-| Quill.js | Lightweight WYSIWYG (~40KB), mobile-friendly, minimal configuration |
+| Sanitised HTML notes | Allows structured text while stripping unsafe markup before render |
+| CSRF protection | Protects forms and AJAX state changes |
+| Invite codes | Keeps signup controlled without adding a full user-admin module |
+| Demo admin account | Allows local testing without needing a manually issued invite |
 | Notes as separate entity | Supports multiple notes per case, tagging by source, and review workflows |
 | Audit trail (append-only) | Full change history for accountability; service-level logging for meaningful entries |
 | Inline editing with AJAX | Minimal friction for corrections; no page reload needed |
 | Category-contextual fields | Progressive disclosure: only show actions/NI when relevant to the category |
 | Voice notes on existing cases | Workers need to add follow-up recordings, not just during initial creation |
+| One-page collapsible case record | Keeps the CMS simple while allowing richer case data |
 | Gunicorn with --preload | Prevents multi-worker race conditions on SQLite WAL mode initialisation |
-| Empty content detection | Strips HTML tags to check for meaningful text, avoiding empty notes from Quill's default markup |
+| Empty content detection | Strips HTML tags to check for meaningful text, avoiding empty notes from markup-only content |
 | env_file over inline env | Single source of truth for configuration; cleaner compose file |
 
 ## Architecture Decision Records
@@ -480,11 +565,10 @@ Detailed rationale for significant decisions is documented in `/docs/adrs/`:
 
 ## Future Considerations
 
-- **Actions** — expand action tracking with completion dates and worker notes
 - **Database migration** — Alembic for schema versioning when moving to Postgres
 - **Real-time collaboration** — WebSocket updates when multiple workers view the same case
-- **Offline support** — Service worker to queue voice notes when connectivity is poor
+- **Offline support** — extend the service worker to queue writes when connectivity is poor
 - **W3W Business plan** — upgrade to enable GPS → what3words auto-conversion
 - **NI number encryption** — encrypt PII fields at rest
 - **Audit archival** — archive audit entries older than N months to manage table growth
-- **File attachments** — support photos, documents beyond voice notes
+- **User administration** — add admin screens for role changes and account deactivation

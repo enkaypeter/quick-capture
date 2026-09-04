@@ -17,7 +17,7 @@ class BaseRepository(ABC, Generic[T]):
     model: type[T]
 
     def get_by_id(self, entity_id: int) -> Optional[T]:
-        return self.model.query.get(entity_id)
+        return db.session.get(self.model, entity_id)
 
     def get_all(self) -> list[T]:
         return self.model.query.all()

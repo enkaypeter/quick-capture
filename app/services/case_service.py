@@ -1,5 +1,6 @@
 import logging
 import os
+from datetime import UTC, date, datetime
 from typing import Optional, Tuple
 
 from flask import current_app
@@ -7,16 +8,22 @@ from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
 from app.models.case import Case, CaseCategory
+from app.models.case_attachment import CaseAttachment
+from app.models.case_interaction import CaseInteraction, InteractionTag, InteractionTagType
 from app.models.case_note import CaseNote, NoteSource
+from app.models.follow_up_task import FollowUpStatus, FollowUpTask
 from app.repositories.case_repository import CaseRepository
 from app.repositories.case_note_repository import CaseNoteRepository
 from app.services.audit_service import AuditService
+from app.services.html_service import sanitize_html
 from app.services.identifier_service import IdentifierService
 from app.services.transcription_client import TranscriptionClient
+from app.extensions import db
 
 logger = logging.getLogger(__name__)
 
 ALLOWED_AUDIO_EXTENSIONS = {"webm", "ogg", "mp3", "wav", "m4a"}
+ALLOWED_ATTACHMENT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx", "txt"}
 
 
 class CaseService:
@@ -39,6 +46,17 @@ class CaseService:
         category: Optional[str] = None,
         voice_note_file: Optional[FileStorage] = None,
         voice_transcript: Optional[str] = None,
+        date_of_birth: Optional[str] = None,
+        age: Optional[int] = None,
+        gender: Optional[str] = None,
+        physical_description: Optional[str] = None,
+        other_contact: Optional[str] = None,
+        consent_status: Optional[str] = None,
+        consent_date: Optional[str] = None,
+        risk_rating: Optional[str] = None,
+        risk_notes: Optional[str] = None,
+        mental_health_notes: Optional[str] = None,
+        current_situation: Optional[str] = None,
     ) -> Tuple[Optional[Case], Optional[str]]:
         """Create a new case/interaction.
 
@@ -55,6 +73,21 @@ class CaseService:
 
         if not category:
             category = CaseCategory.NON_CASELOAD
+
+        calculated_age = self._calculate_age(date_of_birth)
+        if calculated_age is not None:
+            age = calculated_age
+
+        if not self._has_minimum_identifying_detail(
+            full_name=full_name,
+            phone_number=phone_number,
+            location_w3w=location_w3w,
+            notes_content=notes_content,
+            voice_transcript=voice_transcript,
+            date_of_birth=date_of_birth,
+            physical_description=physical_description,
+        ):
+            return None, "Add at least one identifying detail or note before creating a case."
 
         # Generate identifier
         identifier = self.identifier_service.generate(
@@ -79,6 +112,17 @@ class CaseService:
             voice_note_path=voice_note_path,
             category=category,
             user_id=user_id,
+            date_of_birth=date_of_birth or None,
+            age=age,
+            gender=gender or None,
+            physical_description=physical_description or None,
+            other_contact=other_contact or None,
+            consent_status=consent_status or "unknown",
+            consent_date=consent_date or None,
+            risk_rating=risk_rating or "unknown",
+            risk_notes=risk_notes or None,
+            mental_health_notes=mental_health_notes or None,
+            current_situation=current_situation or None,
         )
 
         # Audit: log case creation
@@ -108,7 +152,10 @@ class CaseService:
         return case, None
 
     def get_cases_for_user(self, user_id: int) -> list[Case]:
-        return self.case_repo.get_by_user_id(user_id)
+        return self.case_repo.get_active()
+
+    def search_cases(self, query: str) -> list[Case]:
+        return self.case_repo.search_active(query)
 
     def get_case(self, case_id: int) -> Optional[Case]:
         return self.case_repo.get_by_id(case_id)
@@ -122,33 +169,66 @@ class CaseService:
         user_id: int,
         full_name: Optional[str] = None,
         phone_number: Optional[str] = None,
+        ni_number: Optional[str] = None,
+        date_of_birth: Optional[str] = None,
+        age: Optional[int] = None,
+        gender: Optional[str] = None,
+        physical_description: Optional[str] = None,
+        other_contact: Optional[str] = None,
+        consent_status: Optional[str] = None,
+        consent_date: Optional[str] = None,
+        risk_rating: Optional[str] = None,
+        risk_notes: Optional[str] = None,
+        mental_health_notes: Optional[str] = None,
+        current_situation: Optional[str] = None,
     ) -> Tuple[Optional[Case], Optional[str]]:
         """Update editable case fields with audit logging.
 
-        Only full_name and phone_number are editable.
-        Location and created_at are immutable.
+        Location, identifier and created_at remain immutable.
         """
         updates = {}
+        editable_fields = {
+            "full_name": full_name,
+            "phone_number": phone_number,
+            "ni_number": ni_number,
+            "date_of_birth": date_of_birth,
+            "age": age,
+            "gender": gender,
+            "physical_description": physical_description,
+            "other_contact": other_contact,
+            "consent_status": consent_status,
+            "consent_date": consent_date,
+            "risk_rating": risk_rating,
+            "risk_notes": risk_notes,
+            "mental_health_notes": mental_health_notes,
+            "current_situation": current_situation,
+        }
+        calculated_age = self._calculate_age(date_of_birth)
+        if calculated_age is not None:
+            editable_fields["age"] = calculated_age
 
-        if full_name is not None and full_name != case.full_name:
-            self.audit_service.log_update(
-                case_id=case.id,
-                user_id=user_id,
-                field_name="full_name",
-                old_value=case.full_name or "",
-                new_value=full_name,
-            )
-            updates["full_name"] = full_name or None
+        for field_name, value in editable_fields.items():
+            if value is None:
+                continue
 
-        if phone_number is not None and phone_number != case.phone_number:
-            self.audit_service.log_update(
-                case_id=case.id,
-                user_id=user_id,
-                field_name="phone_number",
-                old_value=case.phone_number or "",
-                new_value=phone_number,
-            )
-            updates["phone_number"] = phone_number or None
+            if field_name == "age":
+                try:
+                    value = int(value) if value != "" else None
+                except (TypeError, ValueError):
+                    return None, "Age must be a number."
+            elif isinstance(value, str):
+                value = value.strip() or None
+
+            old_value = getattr(case, field_name)
+            if value != old_value:
+                self.audit_service.log_update(
+                    case_id=case.id,
+                    user_id=user_id,
+                    field_name=field_name,
+                    old_value=str(old_value or ""),
+                    new_value=str(value or ""),
+                )
+                updates[field_name] = value
 
         if updates:
             return self.case_repo.update(case, **updates), None
@@ -166,8 +246,7 @@ class CaseService:
         if not content or not content.strip():
             return None, "Note content cannot be empty"
 
-        old_content = note.content
-        updated = self.note_repo.update(note, content=content)
+        updated = self.note_repo.update(note, content=sanitize_html(content))
 
         self.audit_service.log_update(
             case_id=note.case_id,
@@ -194,6 +273,8 @@ class CaseService:
         if source == NoteSource.TRANSCRIPTION:
             needs_review = True
 
+        content = sanitize_html(content)
+
         note = self.note_repo.create(
             case_id=case_id,
             content=content,
@@ -211,6 +292,197 @@ class CaseService:
             )
 
         return note
+
+    def add_interaction(
+        self,
+        case_id: int,
+        user_id: int,
+        note_content: Optional[str] = None,
+        tag_types: Optional[list[str]] = None,
+        outcome: Optional[str] = None,
+        location_w3w: Optional[str] = None,
+        location_lat: Optional[float] = None,
+        location_lng: Optional[float] = None,
+    ) -> Tuple[Optional[CaseInteraction], Optional[str]]:
+        tag_types = tag_types or []
+        valid_tags = [t for t in tag_types if t in InteractionTagType.CHOICES]
+        clean_note = sanitize_html(note_content or "")
+
+        if not valid_tags and not self._has_meaningful_content(clean_note) and not outcome:
+            return None, "Add a note, quick tag, or outcome before saving the interaction."
+
+        interaction = CaseInteraction(
+            case_id=case_id,
+            user_id=user_id,
+            note_content=clean_note or None,
+            outcome=(outcome or "").strip() or None,
+            location_w3w=(location_w3w or "").strip() or None,
+            location_lat=location_lat,
+            location_lng=location_lng,
+        )
+        db.session.add(interaction)
+        db.session.flush()
+
+        for tag_type in valid_tags:
+            db.session.add(
+                InteractionTag(
+                    interaction_id=interaction.id,
+                    tag_type=tag_type,
+                    label=InteractionTagType.LABELS[tag_type],
+                )
+            )
+
+        db.session.commit()
+
+        self.audit_service.log_create(
+            case_id=case_id,
+            user_id=user_id,
+            field_name=f"interaction:{interaction.id}",
+            new_value=f"Added interaction ({len(valid_tags)} tags)",
+        )
+        return interaction, None
+
+    def get_interactions_for_case(self, case_id: int) -> list[CaseInteraction]:
+        return CaseInteraction.query.filter_by(case_id=case_id).order_by(
+            CaseInteraction.occurred_at.desc()
+        ).all()
+
+    def add_follow_up_task(
+        self,
+        case_id: int,
+        user_id: int,
+        title: str,
+        due_date: Optional[str] = None,
+    ) -> Tuple[Optional[FollowUpTask], Optional[str]]:
+        title = (title or "").strip()
+        if not title:
+            return None, "Follow-up title is required."
+
+        task = FollowUpTask(
+            case_id=case_id,
+            created_by_user_id=user_id,
+            assigned_user_id=user_id,
+            title=title,
+            due_date=(due_date or "").strip() or None,
+        )
+        db.session.add(task)
+        db.session.commit()
+
+        self.audit_service.log_create(
+            case_id=case_id,
+            user_id=user_id,
+            field_name=f"follow_up:{task.id}",
+            new_value=title,
+        )
+        return task, None
+
+    def complete_follow_up_task(
+        self,
+        task_id: int,
+        user_id: int,
+    ) -> Tuple[Optional[FollowUpTask], Optional[str]]:
+        task = db.session.get(FollowUpTask, task_id)
+        if not task:
+            return None, "Follow-up task not found."
+
+        task.status = FollowUpStatus.DONE
+        task.completed_at = datetime.now(UTC)
+        db.session.commit()
+
+        self.audit_service.log_update(
+            case_id=task.case_id,
+            user_id=user_id,
+            field_name=f"follow_up:{task.id}",
+            old_value="open",
+            new_value="done",
+        )
+        return task, None
+
+    def get_follow_ups_for_case(self, case_id: int) -> list[FollowUpTask]:
+        return FollowUpTask.query.filter_by(case_id=case_id).order_by(
+            FollowUpTask.status.asc(),
+            FollowUpTask.due_date.asc(),
+            FollowUpTask.created_at.desc(),
+        ).all()
+
+    def get_upcoming_follow_ups(self) -> list[FollowUpTask]:
+        return FollowUpTask.query.filter_by(status=FollowUpStatus.OPEN).order_by(
+            FollowUpTask.due_date.asc(),
+            FollowUpTask.created_at.desc(),
+        ).all()
+
+    def add_attachment(
+        self,
+        case_id: int,
+        user_id: int,
+        file: FileStorage,
+        interaction_id: Optional[int] = None,
+    ) -> Tuple[Optional[CaseAttachment], Optional[str]]:
+        if not file or not file.filename:
+            return None, "Choose a file to upload."
+
+        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        if ext not in ALLOWED_ATTACHMENT_EXTENSIONS:
+            return None, "Unsupported file type."
+
+        case_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], str(case_id))
+        os.makedirs(case_dir, exist_ok=True)
+        timestamp = datetime.now(UTC).strftime("%Y%m%d%H%M%S%f")
+        original = secure_filename(file.filename)
+        stored_name = f"{timestamp}_{original}"
+        stored_path = os.path.join(str(case_id), stored_name)
+        absolute_path = os.path.join(current_app.config["UPLOAD_FOLDER"], stored_path)
+        file.save(absolute_path)
+
+        attachment = CaseAttachment(
+            case_id=case_id,
+            interaction_id=interaction_id,
+            user_id=user_id,
+            original_filename=original,
+            stored_path=stored_path,
+            content_type=file.content_type,
+            size_bytes=os.path.getsize(absolute_path),
+        )
+        db.session.add(attachment)
+        db.session.commit()
+
+        self.audit_service.log_create(
+            case_id=case_id,
+            user_id=user_id,
+            field_name=f"attachment:{attachment.id}",
+            new_value=original,
+        )
+        return attachment, None
+
+    def get_attachments_for_case(self, case_id: int) -> list[CaseAttachment]:
+        return CaseAttachment.query.filter_by(case_id=case_id).order_by(
+            CaseAttachment.created_at.desc()
+        ).all()
+
+    def reporting_summary(self) -> dict:
+        cases = self.case_repo.get_active()
+        interactions = CaseInteraction.query.all()
+        tag_counts = {}
+        for tag in InteractionTag.query.all():
+            tag_counts[tag.label] = tag_counts.get(tag.label, 0) + 1
+
+        status_counts = {}
+        risk_counts = {}
+        situation_counts = {}
+        for case in cases:
+            status_counts[case.category] = status_counts.get(case.category, 0) + 1
+            risk_counts[case.risk_rating] = risk_counts.get(case.risk_rating, 0) + 1
+            if case.current_situation:
+                situation_counts[case.current_situation] = situation_counts.get(case.current_situation, 0) + 1
+
+        return {
+            "total_cases": len(cases),
+            "total_interactions": len(interactions),
+            "status_counts": status_counts,
+            "risk_counts": risk_counts,
+            "situation_counts": situation_counts,
+            "tag_counts": tag_counts,
+        }
 
     def mark_note_reviewed(self, note_id: int, user_id: Optional[int] = None) -> Optional[CaseNote]:
         """Mark a transcribed note as reviewed."""
@@ -385,23 +657,16 @@ class CaseService:
         return created
 
     def delete_case(self, case: Case, user_id: Optional[int] = None) -> None:
-        """Delete a case and clean up associated files."""
+        """Archive a case without destroying safeguarding history."""
         if user_id:
             self.audit_service.log_delete(
                 case_id=case.id,
                 user_id=user_id,
                 field_name="case",
-                old_value=f"Deleted case {case.identifier}",
+                old_value=f"Archived case {case.identifier}",
             )
 
-        if case.voice_note_path:
-            file_path = os.path.join(
-                current_app.config["UPLOAD_FOLDER"], case.voice_note_path
-            )
-            if os.path.exists(file_path):
-                os.remove(file_path)
-        # Notes are cascade-deleted via the relationship
-        self.case_repo.delete(case)
+        self.case_repo.update(case, archived_at=datetime.now(UTC))
 
     def _save_voice_note(
         self, file: FileStorage, identifier: str
@@ -424,7 +689,8 @@ class CaseService:
     def _has_meaningful_content(self, html_content: str) -> bool:
         """Check if HTML content has actual text (not just empty tags).
 
-        Quill sends '<p><br></p>' when the editor is empty.
+        Older versions of the app used a rich-text editor that could submit
+        empty HTML tags; keep this defensive check for existing clients.
         """
         import re
         # Strip all HTML tags
@@ -432,6 +698,41 @@ class CaseService:
         # Strip whitespace and common empty placeholders
         text = text.replace("\n", "").replace("\r", "").strip()
         return len(text) > 0
+
+    def _calculate_age(self, date_of_birth: Optional[str]) -> Optional[int]:
+        if not date_of_birth:
+            return None
+
+        try:
+            born = datetime.strptime(date_of_birth, "%Y-%m-%d").date()
+        except (TypeError, ValueError):
+            return None
+
+        today = date.today()
+        if born > today:
+            return None
+
+        return today.year - born.year - ((today.month, today.day) < (born.month, born.day))
+
+    def _has_minimum_identifying_detail(
+        self,
+        full_name: Optional[str],
+        phone_number: Optional[str],
+        location_w3w: Optional[str],
+        notes_content: Optional[str],
+        voice_transcript: Optional[str],
+        date_of_birth: Optional[str],
+        physical_description: Optional[str],
+    ) -> bool:
+        return any([
+            bool((full_name or "").strip()),
+            bool((phone_number or "").strip()),
+            bool((location_w3w or "").strip()),
+            self._has_meaningful_content(notes_content or ""),
+            bool((voice_transcript or "").strip()),
+            bool((date_of_birth or "").strip()),
+            bool((physical_description or "").strip()),
+        ])
 
     def _transcribe_and_create_note(self, case: Case) -> None:
         """Send voice note to transcription service and create a note.

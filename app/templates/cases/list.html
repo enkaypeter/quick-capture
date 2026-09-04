@@ -1,13 +1,42 @@
 {% extends "base.html" %}
 {% block title %}Cases - Simon on the Streets{% endblock %}
 {% block content %}
-<div class="flex items-center justify-between mb-6">
-    <h1 class="text-2xl font-bold">Cases</h1>
-    <a href="{{ url_for('cases.create_case') }}" class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        New Case
-    </a>
+{% set category_labels = {'non-caseload': 'Non-caseload', 'caseload': 'Caseload', 'client': 'Client'} %}
+<div class="mb-6">
+    <div class="flex items-center justify-between gap-3">
+        <h1 class="text-2xl font-bold">Cases</h1>
+        <div class="flex gap-2">
+            <a href="{{ url_for('cases.reports') }}" class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Reports</a>
+            <a href="{{ url_for('cases.create_case') }}" class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors">
+                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+                New Case
+            </a>
+        </div>
+    </div>
+    <form method="GET" class="mt-4">
+        <label for="case-search" class="sr-only">Search cases</label>
+        <input
+            id="case-search"
+            name="q"
+            value="{{ query or '' }}"
+            placeholder="Search name, ID, phone, location, description..."
+            class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"
+        />
+    </form>
 </div>
+
+{% if follow_ups %}
+<section class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
+    <h2 class="text-sm font-semibold text-amber-900 mb-3">Upcoming follow-ups</h2>
+    <div class="space-y-2">
+        {% for task in follow_ups[:5] %}
+        <a href="{{ url_for('cases.view_case', case_id=task.case_id) }}" class="block text-sm text-amber-900 hover:underline">
+            {{ task.due_date or 'No date' }} · {{ task.title }} · {{ task.case.full_name or task.case.identifier }}
+        </a>
+        {% endfor %}
+    </div>
+</section>
+{% endif %}
 
 {% if cases %}
 <div class="space-y-3">
@@ -23,12 +52,20 @@
                         {% if case.category == 'client' %}bg-green-100 text-green-700
                         {% elif case.category == 'caseload' %}bg-blue-100 text-blue-700
                         {% else %}bg-gray-100 text-gray-600{% endif %}">
-                        {{ case.category }}
+                        {{ category_labels.get(case.category, case.category) }}
+                    </span>
+                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
+                        {% if case.risk_rating == 'red' %}bg-red-100 text-red-700
+                        {% elif case.risk_rating == 'amber' %}bg-amber-100 text-amber-700
+                        {% elif case.risk_rating == 'green' %}bg-green-100 text-green-700
+                        {% else %}bg-gray-100 text-gray-600{% endif %}">
+                        risk: {{ case.risk_rating }}
                     </span>
                 </div>
                 <p class="text-xs text-gray-500">
                     {{ case.identifier }}
                     {% if case.location_w3w %} &middot; {{ case.location_w3w }}{% endif %}
+                    {% if case.current_situation %} &middot; {{ case.current_situation|replace('_', ' ') }}{% endif %}
                 </p>
             </div>
             <span class="text-xs text-gray-400 whitespace-nowrap ml-3">

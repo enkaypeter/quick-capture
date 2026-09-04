@@ -1,0 +1,39 @@
+{% extends "base.html" %}
+{% block title %}Erasure log - Simon on the Streets{% endblock %}
+{% block content %}
+<div class="mx-auto max-w-3xl">
+    <h1 class="text-2xl font-bold mb-2">Erasure log</h1>
+    <p class="text-sm text-gray-600 mb-6">
+        Cases that have been permanently destroyed, by erasure request or by the
+        retention policy. These entries hold the case reference and counts only —
+        never the data that was erased.
+    </p>
+
+    <div class="overflow-x-auto rounded-lg border border-gray-200 bg-white">
+        <table class="min-w-full divide-y divide-gray-200 text-sm">
+            <thead class="bg-gray-50">
+                <tr>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Case</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Reason</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Records</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Files</th>
+                    <th class="px-4 py-3 text-left font-medium text-gray-700">Erased</th>
+                </tr>
+            </thead>
+            <tbody class="divide-y divide-gray-100">
+                {% for entry in entries %}
+                <tr>
+                    <td class="px-4 py-3 font-mono">{{ entry.case_identifier }}</td>
+                    <td class="px-4 py-3">{{ entry.reason }}</td>
+                    <td class="px-4 py-3">{{ entry.records_deleted }}</td>
+                    <td class="px-4 py-3">{{ entry.files_deleted }}</td>
+                    <td class="px-4 py-3">{{ entry.purged_at.strftime('%Y-%m-%d %H:%M') if entry.purged_at else '' }}</td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" class="px-4 py-6 text-center text-gray-500">Nothing has been permanently erased.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+{% endblock %}

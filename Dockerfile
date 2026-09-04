@@ -1,3 +1,9 @@
+# LOCAL DEVELOPMENT ONLY. Not a production image.
+#
+# Runs as root, bakes the source into the image and has no secret handling.
+# Production is deployed as a supervised gunicorn process on the host - see
+# docs/operations/deployment.md.
+
 FROM python:3.13-slim
 
 WORKDIR /app

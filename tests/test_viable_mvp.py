@@ -9,7 +9,7 @@ from app.models.invite_code import InviteCode, InviteCodeStatus
 from app.models.user import User
 from app.services.seed_service import seed_demo_cases
 
-from conftest import csrf_token, login, register
+from conftest import csrf_token, login, login_admin, register
 
 
 def create_case(client, **overrides):
@@ -52,7 +52,7 @@ def test_signup_requires_invite_code(client):
 
 
 def test_demo_admin_account_is_seeded(client):
-    response = login(client, "demo@quickcapture.local", "demo-password-123")
+    response = login_admin(client)
 
     assert response.status_code == 200
     assert b"Cases" in response.data
@@ -75,13 +75,13 @@ def test_demo_cases_are_seeded_for_local_demo_account(app, client):
     assert FollowUpTask.query.count() >= 8
     assert CaseAttachment.query.count() >= 4
 
-    response = login(client, "demo@quickcapture.local", "demo-password-123")
+    response = login_admin(client)
     assert b"DEMO-OUTREACH-001" in response.data
     assert b"Demo Alex Reed" in response.data
 
 
 def test_admin_can_create_invite_code_and_signup_consumes_it(client):
-    login(client, "demo@quickcapture.local", "demo-password-123")
+    login_admin(client)
     token = csrf_token(client, "/invite-codes")
 
     response = client.post(
@@ -118,7 +118,7 @@ def test_admin_can_create_invite_code_and_signup_consumes_it(client):
 
 
 def test_invite_code_max_uses_defaults_when_input_is_invalid(client):
-    login(client, "demo@quickcapture.local", "demo-password-123")
+    login_admin(client)
     token = csrf_token(client, "/invite-codes")
 
     response = client.post(
@@ -133,7 +133,7 @@ def test_invite_code_max_uses_defaults_when_input_is_invalid(client):
 
 
 def test_admin_can_deny_unused_invite_code(client):
-    login(client, "demo@quickcapture.local", "demo-password-123")
+    login_admin(client)
     token = csrf_token(client, "/invite-codes")
     client.post(
         "/invite-codes",

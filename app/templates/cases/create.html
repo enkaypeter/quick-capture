@@ -219,7 +219,7 @@
 {% endblock %}
 
 {% block scripts %}
-<script>
+<script nonce="{{ csp_nonce }}">
     document.addEventListener('DOMContentLoaded', function() {
         // --- Voice Note Recording + Transcription ---
         var recordBtn = document.getElementById('record-btn');

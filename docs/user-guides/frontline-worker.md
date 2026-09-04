@@ -15,6 +15,32 @@ For local demo use:
 - Email: `demo@quickcapture.local`
 - Password: `demo-password-123`
 
+## If Your Login Is Locked
+
+The app locks your account after 5 wrong passwords in a row. This protects the
+case records if someone tries to guess your password.
+
+The lock clears itself after 15 minutes. If you need to get in sooner, ask an
+admin to unlock it. Your password has not changed.
+
+## You Will Be Signed Out After 30 Minutes
+
+If you do not use the app for 30 minutes, it signs you out. Just log in again.
+
+This exists because these records are read on phones that get left in vans and
+put down in doorways.
+
+## Turn On A Second Login Step
+
+You can add a 6-digit code to your login, on top of your password. It is
+optional for workers and required for admins.
+
+1. Select `Security`.
+2. Select `Set it up now`.
+3. Scan the square code with an authenticator app on your phone.
+4. Type the 6-digit code your app shows.
+5. Save the recovery codes it gives you, somewhere separate from your phone.
+
 ## Find A Case
 
 1. Go to `Home`.
@@ -151,6 +177,25 @@ Use this for older style notes or extra detail that does not fit a quick interac
 3. Type the note.
 4. Select `Add note`.
 
+## Everyone On The Team Can See Every Case
+
+Every case is visible to every worker who has an account, including risk notes
+and mental health notes.
+
+This is on purpose. If you meet someone at 11pm that a colleague knows well,
+you need their risk assessment right then.
+
+Write notes knowing your colleagues will read them. Keep them factual and
+relevant to the person's support.
+
+## Who Has Read A Case
+
+The app records who opens a case, downloads a document or exports the report
+file. That history is visible to the team, not just to admins.
+
+This is the other half of everyone seeing everything: the access is open, and
+so is the record of who used it.
+
 ## View Case History
 
 1. Open the case.
@@ -169,3 +214,9 @@ Only archive a case when it should no longer appear in the active list.
 4. Confirm the action.
 
 The case is hidden from the active list. It is not deleted from the database.
+
+Archiving hides a case. It does not destroy it. If you archive something by
+mistake, an admin can find it again.
+
+Only an admin can permanently erase a case, and only for a data protection
+erasure request or a record created in error.

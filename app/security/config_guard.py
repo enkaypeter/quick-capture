@@ -85,10 +85,12 @@ def collect_production_config_errors(config) -> List[str]:
                 "off."
             )
 
-    if config.get("DEMO_CASES_ENABLED"):
+    # Demo cases are unsafe next to real records; refused unless ALLOW_DEMO_IN_PRODUCTION opts in.
+    if config.get("DEMO_CASES_ENABLED") and not config.get("ALLOW_DEMO_IN_PRODUCTION"):
         errors.append(
             "DEMO_CASES_ENABLED is on. Fictional demo cases would be seeded "
-            "into the live database alongside real people."
+            "into the live database alongside real people. If this is a demo "
+            "deployment, set ALLOW_DEMO_IN_PRODUCTION=true to permit it."
         )
 
     if config.get("DEBUG"):

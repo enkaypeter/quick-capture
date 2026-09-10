@@ -118,6 +118,32 @@ def test_demo_cases_are_rejected_in_production():
     assert any("DEMO_CASES_ENABLED" in error for error in errors)
 
 
+def test_demo_cases_are_allowed_when_explicitly_opted_in():
+    """A demo/PoC deployment can opt in with ALLOW_DEMO_IN_PRODUCTION."""
+    errors = collect_production_config_errors(
+        safe_production_config(
+            DEMO_CASES_ENABLED=True,
+            ALLOW_DEMO_IN_PRODUCTION=True,
+        )
+    )
+
+    assert errors == []
+
+
+def test_demo_account_still_needs_a_strong_password_when_opted_in():
+    """The opt-in permits demo data, but not a guessable admin password."""
+    errors = collect_production_config_errors(
+        safe_production_config(
+            DEMO_CASES_ENABLED=True,
+            ALLOW_DEMO_IN_PRODUCTION=True,
+            DEMO_ACCOUNT_ENABLED=True,
+            DEMO_ACCOUNT_PASSWORD=DEV_DEMO_PASSWORD,
+        )
+    )
+
+    assert any("demo" in error.lower() for error in errors)
+
+
 def test_debug_mode_is_rejected():
     errors = collect_production_config_errors(safe_production_config(DEBUG=True))
 

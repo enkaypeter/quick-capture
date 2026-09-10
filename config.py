@@ -37,6 +37,8 @@ class Config:
     DEMO_ACCOUNT_PASSWORD = os.environ.get("DEMO_ACCOUNT_PASSWORD", DEV_DEMO_PASSWORD)
     DEMO_ACCOUNT_FIRST_NAME = os.environ.get("DEMO_ACCOUNT_FIRST_NAME", "Demo")
     DEMO_CASES_ENABLED = _env_bool("DEMO_CASES_ENABLED", True)
+    # Opt-in to run production with demo account/cases enabled (demo/PoC only).
+    ALLOW_DEMO_IN_PRODUCTION = _env_bool("ALLOW_DEMO_IN_PRODUCTION", False)
 
     # --- Session security (blocker 7: session timeout) -------------------
     SESSION_COOKIE_HTTPONLY = True
@@ -124,6 +126,7 @@ class ProductionConfig(Config):
     DEMO_ACCOUNT_ENABLED = _env_bool("DEMO_ACCOUNT_ENABLED", False)
     DEMO_ACCOUNT_PASSWORD = os.environ.get("DEMO_ACCOUNT_PASSWORD", "")
     DEMO_CASES_ENABLED = _env_bool("DEMO_CASES_ENABLED", False)
+    ALLOW_DEMO_IN_PRODUCTION = _env_bool("ALLOW_DEMO_IN_PRODUCTION", False)
 
 
 class TestingConfig(Config):

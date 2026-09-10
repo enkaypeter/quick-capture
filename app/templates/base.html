@@ -5,8 +5,37 @@
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <meta name="csrf-token" content="{{ csrf_token() }}" />
     <title>{% block title %}Simon on the Streets{% endblock %}</title>
-    <script src="{{ url_for('static', filename='js/tailwind-config.js') }}"></script>
+    <script>
+        tailwind = window.tailwind || {};
+        tailwind.config = {
+            theme: {
+                extend: {
+                    colors: {
+                        brand: {
+                            50: '#f0f9ff',
+                            100: '#e0f2fe',
+                            500: '#0ea5e9',
+                            600: '#0284c7',
+                            700: '#0369a1',
+                            800: '#075985',
+                            900: '#1e3a5f',
+                        }
+                    }
+                }
+            }
+        }
+    </script>
+    <!-- Tailwind served locally: cdn.tailwindcss.com now 302-redirects and
+         loads nothing, which left every page unstyled. See app/static/vendor. -->
     <script src="{{ url_for('static', filename='vendor/tailwind.min.js') }}"></script>
+    <!-- Quill.js for WYSIWYG editor -->
+    <link href="https://cdn.quilljs.com/1.3.7/quill.snow.css" rel="stylesheet">
+    <style>
+        /* Minimal overrides for Quill to match Tailwind aesthetic */
+        .ql-toolbar.ql-snow { border-color: #e5e7eb; border-radius: 0.5rem 0.5rem 0 0; }
+        .ql-container.ql-snow { border-color: #e5e7eb; border-radius: 0 0 0.5rem 0.5rem; min-height: 120px; }
+        .ql-editor { font-family: inherit; font-size: 0.875rem; }
+    </style>
     {% block head %}{% endblock %}
 </head>
 <body class="h-full bg-gray-50 text-gray-900">

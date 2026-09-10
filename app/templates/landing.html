@@ -4,8 +4,11 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>QuickCapture by Simon on the Streets</title>
-    <script>
-        tailwind = window.tailwind || {};
+    <!-- Tailwind served locally (vendored v3 Play build). Load the script
+         first, then set the theme config after it, matching the CDN ordering
+         the Play build expects. -->
+    <script src="{{ url_for('static', filename='vendor/tailwind.min.js') }}"></script>
+    <script nonce="{{ csp_nonce }}">
         tailwind.config = {
             theme: {
                 extend: {
@@ -24,9 +27,6 @@
             }
         }
     </script>
-    <!-- Tailwind served locally: cdn.tailwindcss.com now 302-redirects and
-         loads nothing, which left this page unstyled. See app/static/vendor. -->
-    <script src="{{ url_for('static', filename='vendor/tailwind.min.js') }}"></script>
 </head>
 <body class="h-full bg-white">
     <!-- Nav -->

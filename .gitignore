@@ -23,5 +23,9 @@ uploads/
 /backups/
 *.tar.gz.enc
 
+# Local tooling
+Makefile
+docker-compose.prod.yml
+
 # macOS
 .DS_Store

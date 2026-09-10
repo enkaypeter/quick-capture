@@ -15,9 +15,9 @@ uploads/
 
 # Environment - never commit real secrets
 .env
-.env.prod
-.env.production
-*.env.local
+.env.*
+!.env.example
+!.env.prod.example
 
 # Backups
 /backups/

@@ -136,6 +136,18 @@ Optional tuning, with defaults from `config.py`:
 | `ACCESS_LOG_DEDUPE_MINUTES` | 5 | Collapse repeat views |
 | `RETENTION_ARCHIVED_CASE_DAYS` | 2190 | Retention for archived cases |
 | `HSTS_ENABLED` | true in production | Strict-Transport-Security |
+| `DEMO_ACCOUNT_SHARED_MFA` | false in production | Demo account accepts any 6-digit MFA code (needs `ALLOW_DEMO_IN_PRODUCTION`) |
+| `DEMO_RESET_INTERVAL_MINUTES` | 0 (off) | Reset the demo account's data this often |
+
+### Demo deployments
+
+A shared demo login needs two things a real deployment must not have. With
+`ALLOW_DEMO_IN_PRODUCTION=true`, `DEMO_ACCOUNT_SHARED_MFA=true` keeps the demo
+account enrolled and lets its code prompt accept any 6 digits, so it can be
+handed to several people. `DEMO_RESET_INTERVAL_MINUTES` then destroys every
+case the demo account created, and restores the seeded demo cases, on the
+first request after each interval. `python -m scripts.reset_demo --apply`
+does the same on demand. Cases created by other accounts are never touched.
 
 ## The configuration guard
 
@@ -147,7 +159,8 @@ Starting with `FLASK_ENV=production` runs
 - `SESSION_COOKIE_SECURE` off
 - `BOOTSTRAP_INVITE_ENABLED` on with a missing or development invite code
 - `DEMO_ACCOUNT_ENABLED` on with a missing or default password
-- `DEMO_CASES_ENABLED` on
+- `DEMO_CASES_ENABLED` on (unless `ALLOW_DEMO_IN_PRODUCTION` is set)
+- `DEMO_ACCOUNT_SHARED_MFA` on (unless `ALLOW_DEMO_IN_PRODUCTION` is set)
 - `DEBUG` on
 
 Every problem is reported at once. This is a hard failure by design: an app

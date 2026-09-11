@@ -39,6 +39,12 @@ class Config:
     DEMO_CASES_ENABLED = _env_bool("DEMO_CASES_ENABLED", True)
     # Opt-in to run production with demo account/cases enabled (demo/PoC only).
     ALLOW_DEMO_IN_PRODUCTION = _env_bool("ALLOW_DEMO_IN_PRODUCTION", False)
+    # The demo account is shared, so no one person can hold its authenticator.
+    # When on, it is kept enrolled and its code prompt accepts any 6 digits.
+    DEMO_ACCOUNT_SHARED_MFA = _env_bool("DEMO_ACCOUNT_SHARED_MFA", True)
+    # Wipe everything the demo account created and restore the seeded demo
+    # cases this often. 0 turns the automatic reset off.
+    DEMO_RESET_INTERVAL_MINUTES = _env_int("DEMO_RESET_INTERVAL_MINUTES", 0)
 
     # --- Session security (blocker 7: session timeout) -------------------
     SESSION_COOKIE_HTTPONLY = True
@@ -127,6 +133,7 @@ class ProductionConfig(Config):
     DEMO_ACCOUNT_PASSWORD = os.environ.get("DEMO_ACCOUNT_PASSWORD", "")
     DEMO_CASES_ENABLED = _env_bool("DEMO_CASES_ENABLED", False)
     ALLOW_DEMO_IN_PRODUCTION = _env_bool("ALLOW_DEMO_IN_PRODUCTION", False)
+    DEMO_ACCOUNT_SHARED_MFA = _env_bool("DEMO_ACCOUNT_SHARED_MFA", False)
 
 
 class TestingConfig(Config):
@@ -139,6 +146,9 @@ class TestingConfig(Config):
     DEMO_ACCOUNT_EMAIL = "demo@quickcapture.local"
     DEMO_ACCOUNT_PASSWORD = DEV_DEMO_PASSWORD
     DEMO_CASES_ENABLED = False
+    # Tests use the demo account as an ordinary admin to drive real enrolment.
+    DEMO_ACCOUNT_SHARED_MFA = False
+    DEMO_RESET_INTERVAL_MINUTES = 0
     DB_DIR = os.path.join(basedir, "instance", "test")
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     # A fixed key so encrypted-column tests are deterministic.

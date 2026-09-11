@@ -93,6 +93,19 @@ def collect_production_config_errors(config) -> List[str]:
             "deployment, set ALLOW_DEMO_IN_PRODUCTION=true to permit it."
         )
 
+    # Any-code MFA leaves a shared admin account behind a password alone.
+    if (
+        config.get("DEMO_ACCOUNT_ENABLED")
+        and config.get("DEMO_ACCOUNT_SHARED_MFA")
+        and not config.get("ALLOW_DEMO_IN_PRODUCTION")
+    ):
+        errors.append(
+            "DEMO_ACCOUNT_SHARED_MFA is on. The demo account would accept any "
+            "6-digit code, leaving an admin account protected by a shared "
+            "password alone. If this is a demo deployment, set "
+            "ALLOW_DEMO_IN_PRODUCTION=true to permit it."
+        )
+
     if config.get("DEBUG"):
         errors.append(
             "DEBUG is on. The interactive debugger allows arbitrary code "

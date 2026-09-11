@@ -15,6 +15,7 @@ from flask_login import current_user, login_required, login_user, logout_user
 from app.extensions import db
 from app.models.user import User
 from app.services.auth_service import AuthService
+from app.services.demo_service import is_shared_demo_account
 from app.services.invite_service import InviteService
 from app.services.login_throttle_service import LoginThrottleService
 from app.services.mfa_service import MfaService
@@ -229,6 +230,8 @@ def mfa_verify():
         session.pop(PENDING_MFA_USER_ID, None)
         return redirect(url_for("auth.login"))
 
+    shared_demo = is_shared_demo_account(user, current_app.config)
+
     if request.method == "POST":
         throttle = _throttle()
         ip_address = _client_ip()
@@ -240,9 +243,13 @@ def mfa_verify():
                 f"{decision.retry_after_minutes} minute(s).",
                 category="error",
             )
-            return render_template("auth/mfa_verify.html"), 429
+            return render_template(
+                "auth/mfa_verify.html", shared_demo=shared_demo
+            ), 429
 
-        success, error = mfa_service.verify(user, request.form.get("code", ""))
+        success, error = mfa_service.verify(
+            user, request.form.get("code", ""), accept_any_code=shared_demo
+        )
         if not success:
             # Second-factor failures count towards the same lockout as
             # password failures; a stolen password should not buy an
@@ -256,7 +263,7 @@ def mfa_verify():
             flash("Logged in successfully!", category="success")
             return redirect(url_for("cases.list_cases"))
 
-    return render_template("auth/mfa_verify.html")
+    return render_template("auth/mfa_verify.html", shared_demo=shared_demo)
 
 
 def _qr_svg(provisioning_uri: str) -> str:

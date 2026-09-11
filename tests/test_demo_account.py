@@ -1,6 +1,9 @@
 """The shared demo account: any-code MFA and resetting its data."""
 
 import os
+from datetime import datetime
+from datetime import time as dt_time
+from zoneinfo import ZoneInfo
 
 import pytest
 
@@ -8,7 +11,7 @@ from app.models.case import Case
 from app.models.erasure_log import ErasureLog
 from app.models.user import User
 from app.services import demo_service
-from app.services.demo_service import reset_demo_data
+from app.services.demo_service import most_recent_reset, reset_demo_data
 from app.services.mfa_service import MfaService
 from app.services.seed_service import DEMO_CASE_DEFINITIONS, seed_demo_account
 
@@ -165,26 +168,46 @@ def test_reset_does_not_write_erasure_log_rows(app, demo_with_cases):
     assert ErasureLog.query.count() == 0
 
 
-def test_automatic_reset_runs_when_the_interval_has_elapsed(app, tmp_path, demo_with_cases):
-    app.config["DEMO_RESET_INTERVAL_MINUTES"] = 60
+def test_most_recent_reset_is_today_once_the_time_has_passed():
+    tz = ZoneInfo("Europe/London")
+    now = datetime(2026, 9, 11, 9, 0, tzinfo=tz)
+
+    assert most_recent_reset(now, dt_time(3, 0), tz) == datetime(2026, 9, 11, 3, 0, tzinfo=tz)
+
+
+def test_most_recent_reset_is_yesterday_before_the_time():
+    tz = ZoneInfo("Europe/London")
+    now = datetime(2026, 9, 11, 2, 0, tzinfo=tz)
+
+    assert most_recent_reset(now, dt_time(3, 0), tz) == datetime(2026, 9, 10, 3, 0, tzinfo=tz)
+
+
+def test_a_malformed_reset_time_is_rejected():
+    with pytest.raises(ValueError):
+        demo_service.parse_reset_time("3am")
+
+
+def test_nightly_reset_runs_on_the_first_request_after_the_reset_time(
+    app, tmp_path, demo_with_cases
+):
+    app.config["DEMO_RESET_TIME"] = "03:00"
     app.config["DB_DIR"] = str(tmp_path)
     demo_service.init_demo_reset(app)
     client = app.test_client()
 
-    signed_in_demo(client)  # first request resets and writes the marker
+    # First start writes the marker without wiping anything.
+    signed_in_demo(client)
     marker = tmp_path / demo_service.RESET_MARKER_FILENAME
     assert marker.exists()
 
-    create_case(client, full_name="Made After Reset")
-    assert Case.query.filter_by(full_name="Made After Reset").count() == 1
-
-    # Not due yet: the record survives.
+    create_case(client, full_name="Made During The Day")
     client.get("/dashboard")
-    assert Case.query.filter_by(full_name="Made After Reset").count() == 1
+    assert Case.query.filter_by(full_name="Made During The Day").count() == 1
 
-    # Backdate the marker past the interval: the next request resets.
-    old = marker.stat().st_mtime - 61 * 60
+    # Pretend the last reset was before last night's 03:00.
+    old = marker.stat().st_mtime - 25 * 60 * 60
     os.utime(marker, (old, old))
     client.get("/dashboard")
 
-    assert Case.query.filter_by(full_name="Made After Reset").count() == 0
+    assert Case.query.filter_by(full_name="Made During The Day").count() == 0
+    assert Case.query.count() == len(DEMO_CASE_DEFINITIONS)

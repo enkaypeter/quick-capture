@@ -7,7 +7,7 @@ Destroys every case the demo account created, and the seeded demo cases
 (so edits to them are undone), then seeds the demo cases again. Cases
 created by any other account are never touched.
 
-For an automatic reset without cron, set DEMO_RESET_INTERVAL_MINUTES instead.
+For an automatic nightly reset without cron, set DEMO_RESET_TIME instead.
 """
 
 import argparse

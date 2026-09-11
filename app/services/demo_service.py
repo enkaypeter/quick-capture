@@ -6,8 +6,8 @@ The MVP is shown to people by handing out one demo login. Two consequences:
   DEMO_ACCOUNT_SHARED_MFA on its code prompt accepts any 6 digits.
 * Everyone who tries the app leaves records behind. `reset_demo_data` puts the
   account back to the seeded demo cases, either on demand
-  (`python -m scripts.reset_demo --apply`) or every
-  DEMO_RESET_INTERVAL_MINUTES via `init_demo_reset`.
+  (`python -m scripts.reset_demo --apply`) or nightly at DEMO_RESET_TIME
+  via `init_demo_reset`.
 
 The reset only touches cases the demo account created and the seeded demo
 cases, so it is safe next to real users' records.
@@ -16,9 +16,11 @@ cases, so it is safe next to real users' records.
 import fcntl
 import logging
 import os
-import time
 from dataclasses import dataclass, field
+from datetime import UTC, datetime, timedelta
+from datetime import time as dt_time
 from typing import List, Optional
+from zoneinfo import ZoneInfo
 
 from sqlalchemy import or_
 
@@ -94,26 +96,61 @@ def reset_demo_data(config) -> DemoResetResult:
     return result
 
 
-def init_demo_reset(app) -> None:
-    """Reset the demo data on the first request after each interval elapses.
+def parse_reset_time(value: str) -> dt_time:
+    """Parse DEMO_RESET_TIME ("HH:MM", 24-hour)."""
+    try:
+        hour, minute = (int(part) for part in value.split(":"))
+        return dt_time(hour, minute)
+    except ValueError:
+        raise ValueError(
+            f"DEMO_RESET_TIME must be HH:MM in 24-hour time, got {value!r}"
+        ) from None
 
-    Done lazily on a request rather than with a scheduler so it needs no cron
-    entry on the demo host. The last-reset time lives in a marker file beside
-    the database so every gunicorn worker sees it, and a file lock stops two
-    workers resetting at once.
+
+def most_recent_reset(now: datetime, reset_at: dt_time, tz: ZoneInfo) -> datetime:
+    """The latest scheduled reset time at or before `now`."""
+    local_now = now.astimezone(tz)
+    scheduled = datetime.combine(local_now.date(), reset_at, tzinfo=tz)
+    if scheduled > local_now:
+        scheduled = datetime.combine(
+            local_now.date() - timedelta(days=1), reset_at, tzinfo=tz
+        )
+    return scheduled
+
+
+def init_demo_reset(app) -> None:
+    """Reset the demo data once a night, at DEMO_RESET_TIME.
+
+    Done lazily rather than with a scheduler so it needs no cron entry on the
+    demo host: the first request after the reset time does it, before that
+    request is handled. If nobody uses the app overnight, the first visitor
+    next morning triggers it and still sees fresh data.
+
+    The last-reset time lives in a marker file beside the database so every
+    gunicorn worker sees it, and a file lock stops two workers resetting at
+    once.
     """
-    interval_minutes = app.config.get("DEMO_RESET_INTERVAL_MINUTES", 0)
-    if interval_minutes <= 0 or not app.config.get("DEMO_ACCOUNT_ENABLED"):
+    value = (app.config.get("DEMO_RESET_TIME") or "").strip()
+    if not value or not app.config.get("DEMO_ACCOUNT_ENABLED"):
         return
 
-    interval_seconds = interval_minutes * 60
+    reset_at = parse_reset_time(value)
+    tz = ZoneInfo(app.config.get("DEMO_RESET_TIMEZONE") or "Europe/London")
     marker_path = os.path.join(app.config["DB_DIR"], RESET_MARKER_FILENAME)
+
+    def _write_marker() -> None:
+        with open(marker_path, "w") as marker:
+            marker.write(datetime.now(UTC).isoformat())
 
     def _is_due() -> bool:
         try:
-            return time.time() - os.path.getmtime(marker_path) >= interval_seconds
+            last_reset = os.path.getmtime(marker_path)
         except FileNotFoundError:
-            return True
+            # First start: count from now, so deploying mid-afternoon does
+            # not wipe a demo in progress.
+            _write_marker()
+            return False
+        return last_reset < most_recent_reset(datetime.now(UTC), reset_at, tz).timestamp()
 
     @app.before_request
     def _reset_demo_data_when_due():
@@ -134,9 +171,8 @@ def init_demo_reset(app) -> None:
                         db.session.rollback()
                         logger.exception("Demo reset failed")
                     # Written even on failure so a broken reset is retried
-                    # next interval rather than on every request.
-                    with open(marker_path, "w") as marker:
-                        marker.write(str(time.time()))
+                    # tomorrow night rather than on every request.
+                    _write_marker()
             finally:
                 fcntl.flock(lock_file, fcntl.LOCK_UN)
         return None

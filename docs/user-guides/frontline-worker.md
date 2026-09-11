@@ -17,6 +17,9 @@ For local demo use:
 
 - Email: `demo@quickcapture.local`
 - Password: `demo-password-123`
+- Code: any 6 digits, for example `123456`
+
+Anything you create in the demo account may be deleted overnight.
 
 ## If Your Login Is Locked
 

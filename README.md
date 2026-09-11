@@ -56,7 +56,7 @@ The local app seeds a demo admin account by default:
 - Email: `demo@quickcapture.local`
 - Password: `demo-password-123`
 
-Because the demo account is an admin, the first sign-in will ask you to set up two-factor authentication before you can go anywhere else. Any TOTP app works — scan the QR code, enter the 6-digit code, and save the recovery codes it shows you.
+The demo account is shared, so locally it is already enrolled in two-factor authentication and its code prompt accepts any 6 digits. Every other admin account still has to set up a real authenticator app on first sign-in. Set `DEMO_ACCOUNT_SHARED_MFA=false` to make the demo account enrol like any other admin.
 
 The local demo account also creates 10 fictional demo cases with varied statuses, risk levels, notes, interaction tags, follow-ups and sample documents. Restarting the app will not create copies of these records.
 
@@ -67,6 +67,14 @@ DEMO_ACCOUNT_EMAIL=demo@example.org \
 DEMO_ACCOUNT_PASSWORD='replace-with-local-password' \
 .venv/bin/python main.py
 ```
+
+To put the demo account back to just the demo cases — deleting anything it created — run:
+
+```bash
+.venv/bin/python -m scripts.reset_demo --apply
+```
+
+A demo deployment can do this automatically every night with `DEMO_RESET_TIME=03:00`. See [ADR-009](docs/adrs/009-shared-demo-account.md) and [docs/operations/deployment.md](docs/operations/deployment.md#demo-deployments).
 
 To start with an empty local case list, run with:
 

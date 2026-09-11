@@ -211,3 +211,160 @@ def test_nightly_reset_runs_on_the_first_request_after_the_reset_time(
 
     assert Case.query.filter_by(full_name="Made During The Day").count() == 0
     assert Case.query.count() == len(DEMO_CASE_DEFINITIONS)
+
+
+def test_most_recent_reset_follows_british_summer_time():
+    tz = ZoneInfo("Europe/London")
+    # 02:30 UTC in August is 03:30 BST, so today's 03:00 reset has passed.
+    now = datetime(2026, 8, 1, 2, 30, tzinfo=ZoneInfo("UTC"))
+
+    assert most_recent_reset(now, dt_time(3, 0), tz) == datetime(2026, 8, 1, 3, 0, tzinfo=tz)
+
+
+def test_no_reset_hook_is_registered_without_a_reset_time(app):
+    before = len(app.before_request_funcs.get(None, []))
+
+    demo_service.init_demo_reset(app)
+
+    assert len(app.before_request_funcs.get(None, [])) == before
+
+
+def test_no_reset_hook_is_registered_without_the_demo_account(app):
+    app.config["DEMO_RESET_TIME"] = "03:00"
+    app.config["DEMO_ACCOUNT_ENABLED"] = False
+    before = len(app.before_request_funcs.get(None, []))
+
+    demo_service.init_demo_reset(app)
+
+    assert len(app.before_request_funcs.get(None, [])) == before
+
+
+def _arm_nightly_reset(app, tmp_path):
+    """Register the hook with a marker that is already overdue."""
+    app.config["DEMO_RESET_TIME"] = "03:00"
+    app.config["DB_DIR"] = str(tmp_path)
+    marker = tmp_path / demo_service.RESET_MARKER_FILENAME
+    marker.write_text("")
+    old = marker.stat().st_mtime - 25 * 60 * 60
+    os.utime(marker, (old, old))
+    demo_service.init_demo_reset(app)
+    return marker, old
+
+
+def test_a_failed_reset_does_not_break_the_request_or_retry_every_time(
+    app, tmp_path, demo_with_cases, monkeypatch
+):
+    calls = []
+
+    def broken_reset(config):
+        calls.append(config)
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(demo_service, "reset_demo_data", broken_reset)
+    marker, old = _arm_nightly_reset(app, tmp_path)
+    client = app.test_client()
+
+    assert client.get("/login").status_code == 200
+    client.get("/login")
+
+    assert len(calls) == 1
+    assert marker.stat().st_mtime > old
+
+
+def test_a_reset_already_in_progress_is_not_repeated(
+    app, tmp_path, demo_with_cases, monkeypatch
+):
+    import fcntl
+
+    calls = []
+    monkeypatch.setattr(demo_service, "reset_demo_data", calls.append)
+    marker, _ = _arm_nightly_reset(app, tmp_path)
+
+    with open(str(marker) + ".lock", "w") as held:
+        fcntl.flock(held, fcntl.LOCK_EX)  # another worker is mid-reset
+        assert app.test_client().get("/login").status_code == 200
+        fcntl.flock(held, fcntl.LOCK_UN)
+
+    assert calls == []
+
+
+# --- Seeding the shared demo account -----------------------------------
+
+
+def test_a_new_shared_demo_account_is_created_enrolled(app):
+    app.config["DEMO_ACCOUNT_SHARED_MFA"] = True
+    app.config["DEMO_ACCOUNT_EMAIL"] = "fresh-demo@example.org"
+
+    user = seed_demo_account()
+
+    assert user.email == "fresh-demo@example.org"
+    assert user.role == "admin"
+    assert user.mfa_enabled is True
+    assert user.totp_secret
+
+
+def test_restarting_does_not_rotate_the_demo_secret(shared_demo):
+    secret = shared_demo.totp_secret
+
+    assert seed_demo_account().totp_secret == secret
+
+
+def test_the_demo_account_is_matched_case_insensitively(app, shared_demo):
+    app.config["DEMO_ACCOUNT_EMAIL"] = DEMO_EMAIL.upper()
+
+    assert demo_service.is_shared_demo_account(shared_demo, app.config) is True
+
+
+def test_shared_mfa_is_off_when_the_flag_is_off(app, shared_demo):
+    app.config["DEMO_ACCOUNT_SHARED_MFA"] = False
+
+    assert demo_service.is_shared_demo_account(shared_demo, app.config) is False
+
+
+# --- The reset_demo script ---------------------------------------------
+
+
+@pytest.fixture()
+def run_script(app, monkeypatch, capsys):
+    from scripts import reset_demo
+
+    monkeypatch.setattr(reset_demo, "create_app", lambda config_name: app)
+
+    def run(*args):
+        exit_code = reset_demo.main(["--config", "testing", *args])
+        return exit_code, capsys.readouterr().out
+
+    return run
+
+
+def test_the_script_defaults_to_a_dry_run(client, run_script, demo_with_cases):
+    signed_in_demo(client)
+    create_case(client, full_name="Left Behind")
+
+    exit_code, output = run_script()
+
+    assert exit_code == 0
+    assert "Dry run" in output
+    assert "DEMO-OUTREACH-001" in output
+    assert Case.query.filter_by(full_name="Left Behind").count() == 1
+
+
+def test_the_script_resets_with_apply(client, run_script, demo_with_cases):
+    signed_in_demo(client)
+    create_case(client, full_name="Left Behind")
+
+    exit_code, output = run_script("--apply")
+
+    assert exit_code == 0
+    assert f"Destroyed {len(DEMO_CASE_DEFINITIONS) + 1} case(s)" in output
+    assert f"Seeded {len(DEMO_CASE_DEFINITIONS)} demo case(s)" in output
+    assert Case.query.filter_by(full_name="Left Behind").count() == 0
+
+
+def test_the_script_does_nothing_without_the_demo_account(app, run_script):
+    app.config["DEMO_ACCOUNT_ENABLED"] = False
+
+    exit_code, output = run_script("--apply")
+
+    assert exit_code == 0
+    assert "Nothing to do" in output

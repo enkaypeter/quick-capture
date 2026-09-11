@@ -127,6 +127,11 @@ The demo cases cover different case statuses, risks, notes, follow-ups, reports 
 
 Starting the app again will not create copies of these records.
 
+The demo account can be shared: its two-factor code prompt accepts any 6
+digits. Anything created in it can be cleared with
+`python -m scripts.reset_demo --apply`, or every night by setting
+`DEMO_RESET_TIME`. See [ADR-009](adrs/009-shared-demo-account.md).
+
 ### Tests
 
 The test suite covers the main MVP flows.

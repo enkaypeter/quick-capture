@@ -27,6 +27,10 @@ For local demo use:
 
 - Email: `demo@quickcapture.local`
 - Password: `demo-password-123`
+- Code: any 6 digits, for example `123456`
+
+The demo account is shared, so its code prompt accepts any 6 digits. Your own
+admin account needs the real code from your authenticator app.
 
 ## Set Up Two-Factor Authentication
 
@@ -223,6 +227,23 @@ Use them to test:
 - reports
 
 These are not real people.
+
+## Reset Demo Data
+
+Anything created while logged in as the demo account can be cleared, putting
+the 10 demo cases back as they started. Edits to the demo cases are undone too.
+Cases created by other accounts are not touched.
+
+To reset now:
+
+```bash
+.venv/bin/python -m scripts.reset_demo          # shows what would be deleted
+.venv/bin/python -m scripts.reset_demo --apply  # deletes it and reseeds
+```
+
+A demo deployment can reset every night instead. Set `DEMO_RESET_TIME` to a
+time nobody uses it, such as `03:00`. Anything created in the demo account
+before that time is gone the next morning.
 
 ## Turn Off Demo Cases
 

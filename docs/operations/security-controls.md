@@ -31,6 +31,12 @@ reach any other page. Enrolment is two steps — a secret is generated, then
 activated only once the user proves they can generate a code from it — so it is
 not possible to lock yourself out with a secret your app never received.
 
+The one exception is the shared demo account. With `DEMO_ACCOUNT_SHARED_MFA` on
+it is seeded already enrolled and its code prompt accepts any 6 digits, because
+no single person holds its authenticator. Production refuses this unless
+`ALLOW_DEMO_IN_PRODUCTION=true`. See
+[ADR-009](../adrs/009-shared-demo-account.md).
+
 Recovery codes are shown exactly once. If they are lost and the phone is lost,
 the account can only be recovered by clearing `mfa_enabled` and `totp_secret`
 directly in the database.
@@ -116,6 +122,7 @@ from a risk assessment at 11pm is worse.
 | `tests/test_retention_and_erasure.py` | Purge, erasure log, retention job |
 | `tests/test_backups.py` | Encrypted backup and restore round trip |
 | `tests/test_authorisation_model.py` | The flat access model, as decided |
+| `tests/test_demo_account.py` | Any-code demo MFA, demo data reset |
 
 ## Still outstanding
 

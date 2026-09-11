@@ -72,6 +72,11 @@ records and files destroyed, and the timestamp. It holds **no personal data** â€
 it is proof that destruction happened, not a copy of what was destroyed. It has
 no foreign key to the case, because the case no longer exists.
 
+The one exception is the demo data reset (`scripts/reset_demo.py` and
+`DEMO_RESET_TIME`). It destroys only the demo account's fictional cases and
+writes no erasure log rows, so the log is not buried in nightly entries. See
+[ADR-009](../adrs/009-shared-demo-account.md).
+
 ## Handling an erasure request
 
 1. Confirm the request is genuine and from the data subject or their

@@ -140,7 +140,8 @@ These follow from choosing a host and are not blocked on anything else:
 - [ ] **Backups scheduled** and their failures alerted on.
 - [ ] **Retention job scheduled** with the agreed periods.
 - [ ] **Named admin accounts created**, MFA enrolled, recovery codes stored
-      away from the phone. Demo account and bootstrap invite off.
+      away from the phone. Demo account, any-code demo MFA
+      (`DEMO_ACCOUNT_SHARED_MFA`), demo reset and bootstrap invite off.
 - [ ] **Claire and Tracey have tested the MVP** and confirmed field names,
       report data, risk wording, consent wording and daily workflow fit — see
       [status.md](../status.md).

@@ -103,6 +103,7 @@ graph LR
 │   │   ├── auth_service.py        Authentication and invite validation
 │   │   ├── invite_service.py      Invite creation, consumption and denial
 │   │   ├── seed_service.py        Local demo admin account seeding
+│   │   ├── demo_service.py        Shared demo account: any-code MFA and nightly reset
 │   │   ├── case_service.py        Case, notes, interactions, follow-ups and files
 │   │   ├── html_service.py        HTML sanitisation
 │   │   ├── csrf_service.py        CSRF protection for forms and AJAX
@@ -125,7 +126,8 @@ graph LR
 │       ├── 002-audit-trail.md
 │       ├── 003-inline-editing.md
 │       ├── 004-category-contextual-fields.md
-│       └── 005-voice-notes-on-existing-cases.md
+│       ├── 005-voice-notes-on-existing-cases.md
+│       └── ...                    006 to 009
 ├── uploads/cases/                 Voice note storage (runtime)
 └── instance/database.db           SQLite database (runtime)
 ```
@@ -248,6 +250,8 @@ erDiagram
 Users have either `worker` or `admin` roles. Workers can view active team cases, create case records, add interactions, complete follow-ups, upload documents and use reporting views. Admins can also manage invite codes.
 
 Local development seeds a demo admin account when `DEMO_ACCOUNT_ENABLED=true`. When `DEMO_CASES_ENABLED=true`, the app also seeds 10 fictional demo cases under that account so a fresh local install can demonstrate case status, risk, notes, interaction tags, follow-ups, reports and document uploads. Demo case identifiers use the `DEMO-` prefix. Restarting the app does not create duplicate demo cases.
+
+The demo account is meant to be shared. With `DEMO_ACCOUNT_SHARED_MFA=true` it is seeded already enrolled in MFA and its code prompt accepts any 6 digits. With `DEMO_RESET_TIME` set, the first request after that time each night destroys every case the demo account created and restores the seeded demo cases (`app/services/demo_service.py`); `scripts/reset_demo.py` does the same on demand. See [ADR-009](adrs/009-shared-demo-account.md).
 
 Production disables the demo account and demo cases by default. Signup accepts either an enabled bootstrap invite code or an active database-backed invite code. Database invite codes are created by admins, can be limited to a defined number of uses, and can be denied before use.
 
@@ -528,8 +532,9 @@ managed secrets, off-site backups, a scheduled retention job and log handling.
 
 Production also runs a startup configuration guard
 (`app/security/config_guard.py`) that refuses to start on a missing or default
-`SECRET_KEY`, missing encryption keys, insecure session cookies, demo seeding,
-or the development invite code. This is a hard failure by design: an app
+`SECRET_KEY`, missing encryption keys, insecure session cookies, demo seeding
+or any-code demo MFA (unless `ALLOW_DEMO_IN_PRODUCTION` is set), or the
+development invite code. This is a hard failure by design: an app
 running on a publicly known secret key looks perfectly healthy.
 
 ### Environment Variables (`.env` locally, secret store in production)
@@ -548,6 +553,10 @@ running on a publicly known secret key looks perfectly healthy.
 | `W3W_API_KEY` | (empty) | What3Words API key for autosuggest |
 | `DEMO_ACCOUNT_ENABLED` | `false` in production, `true` locally | Seeds the local demo admin account |
 | `DEMO_CASES_ENABLED` | `false` in production, `true` locally | Seeds fictional demo cases for local demonstration |
+| `DEMO_ACCOUNT_SHARED_MFA` | `false` in production, `true` locally | Demo account accepts any 6-digit MFA code |
+| `DEMO_RESET_TIME` | (empty, off) | Nightly `HH:MM` to reset the demo account's data |
+| `DEMO_RESET_TIMEZONE` | `Europe/London` | Timezone for `DEMO_RESET_TIME` |
+| `ALLOW_DEMO_IN_PRODUCTION` | `false` | Permits demo cases and any-code demo MFA in production |
 | `BOOTSTRAP_INVITE_ENABLED` | `false` in production, `true` locally | Enables the configured bootstrap signup invite code |
 
 Locally, configuration comes from `.env` (see `.env.example`). In production it comes from the host's secret store or a root-owned environment file — see `.env.production.example`. The full list is in [operations/deployment.md](operations/deployment.md).
@@ -591,6 +600,7 @@ are directories on encrypted storage, backed up nightly by
 | CSRF protection | Protects forms and AJAX state changes |
 | Invite codes | Keeps signup controlled without adding a full user-admin module |
 | Demo admin account | Allows local testing without needing a manually issued invite |
+| Shared demo login with nightly reset | Several people can use one demo login, and each day starts from clean demo data ([ADR-009](adrs/009-shared-demo-account.md)) |
 | Notes as separate entity | Supports multiple notes per case, tagging by source, and review workflows |
 | Audit trail (append-only) | Full change history for accountability; service-level logging for meaningful entries |
 | Inline editing with AJAX | Minimal friction for corrections; no page reload needed |
@@ -613,6 +623,7 @@ Detailed rationale for significant decisions is documented in `/docs/adrs/`:
 - [ADR-006: Lightweight Migrations](adrs/006-lightweight-migrations.md) — startup schema migrations for SQLite
 - [ADR-007: Team-Wide Case Visibility](adrs/007-team-wide-case-visibility.md) — all workers see all cases, and why
 - [ADR-008: Security Controls for Production](adrs/008-security-controls-for-production.md) — the eleven pre-production blockers and how each is closed
+- [ADR-009: Shared Demo Account](adrs/009-shared-demo-account.md) — any-code MFA and a nightly data reset for the demo login
 
 ## Future Considerations
 

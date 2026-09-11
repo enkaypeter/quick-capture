@@ -72,26 +72,33 @@ class RetentionService:
         requested_by_user_id: Optional[int] = None,
     ) -> PurgeResult:
         """Permanently destroy a case, its children, its logs and its files."""
-        identifier = case.identifier
-        case_id = case.id
-
-        files_deleted = self._delete_case_files(case)
-        records_deleted = self._delete_case_records(case_id)
+        result = self.destroy_case(case)
 
         entry = ErasureLog(
-            case_identifier=identifier,
+            case_identifier=result.case_identifier,
             requested_by_user_id=requested_by_user_id,
             reason=reason,
-            records_deleted=records_deleted,
-            files_deleted=files_deleted,
+            records_deleted=result.records_deleted,
+            files_deleted=result.files_deleted,
         )
         db.session.add(entry)
         db.session.commit()
 
         logger.info(
-            f"Purged case {identifier}: {records_deleted} record(s), "
-            f"{files_deleted} file(s), reason={reason}"
+            f"Purged case {result.case_identifier}: {result.records_deleted} "
+            f"record(s), {result.files_deleted} file(s), reason={reason}"
         )
+        return result
+
+    def destroy_case(self, case: Case) -> PurgeResult:
+        """Delete a case, its children, its logs and its files, unrecorded.
+
+        Only for fictional data (the demo reset). Erasing a real person's
+        record must go through `purge_case`, which leaves the evidence row.
+        """
+        identifier = case.identifier
+        files_deleted = self._delete_case_files(case)
+        records_deleted = self._delete_case_records(case.id)
         return PurgeResult(
             case_identifier=identifier,
             records_deleted=records_deleted,

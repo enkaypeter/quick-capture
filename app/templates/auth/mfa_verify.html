@@ -6,6 +6,11 @@
     <p class="text-sm text-gray-600 text-center mb-6">
         Open your authenticator app and enter the 6-digit code.
     </p>
+    {% if shared_demo %}
+    <p class="mb-6 rounded-lg bg-brand-50 px-3 py-2 text-sm text-brand-700 text-center">
+        This is the shared demo account: any 6-digit code will work.
+    </p>
+    {% endif %}
     <form method="POST" class="space-y-4">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
         <div>

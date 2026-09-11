@@ -2,6 +2,7 @@ import os
 from datetime import UTC, date, datetime, timedelta
 from typing import Optional
 
+import pyotp
 from flask import current_app
 from werkzeug.security import check_password_hash, generate_password_hash
 
@@ -419,6 +420,8 @@ def seed_demo_account() -> Optional[User]:
         if not check_password_hash(user.password, password):
             user.password = generate_password_hash(password, method="pbkdf2:sha256")
             changed = True
+        if _enrol_shared_demo_mfa(user):
+            changed = True
         if changed:
             db.session.commit()
         return user
@@ -432,9 +435,28 @@ def seed_demo_account() -> Optional[User]:
         ),
         role="admin",
     )
+    _enrol_shared_demo_mfa(user)
     db.session.add(user)
     db.session.commit()
     return user
+
+
+def _enrol_shared_demo_mfa(user: User) -> bool:
+    """Keep the shared demo account enrolled, so the code prompt is shown
+    but nobody is sent to set up an authenticator. Returns True if changed.
+
+    The secret is never shown to anyone; with DEMO_ACCOUNT_SHARED_MFA on,
+    login accepts any 6-digit code instead (see MfaService.verify).
+    """
+    if not current_app.config.get("DEMO_ACCOUNT_SHARED_MFA"):
+        return False
+    if user.mfa_enabled and user.totp_secret:
+        return False
+
+    user.totp_secret = pyotp.random_base32()
+    user.mfa_enabled = True
+    user.mfa_confirmed_at = datetime.now(UTC)
+    return True
 
 
 def seed_demo_cases(user: Optional[User]) -> None:

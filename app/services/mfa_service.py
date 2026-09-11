@@ -10,6 +10,7 @@ generate a code from it. That prevents locking someone out of their own
 account with a secret their authenticator never actually received.
 """
 
+import re
 import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime
@@ -102,11 +103,22 @@ class MfaService:
 
     # --- Verification ----------------------------------------------------
 
-    def verify(self, user: User, code: str) -> Tuple[bool, Optional[str]]:
-        """Verify a login-time code, accepting either a TOTP or a recovery code."""
+    def verify(
+        self, user: User, code: str, accept_any_code: bool = False
+    ) -> Tuple[bool, Optional[str]]:
+        """Verify a login-time code, accepting either a TOTP or a recovery code.
+
+        `accept_any_code` is for the shared demo account only: any 6 digits
+        pass, because no single person holds its authenticator.
+        """
         code = (code or "").strip().replace(" ", "")
         if not code:
             return False, "Enter the 6-digit code from your authenticator app."
+
+        if accept_any_code:
+            if re.fullmatch(r"\d{6}", code):
+                return True, None
+            return False, "Enter any 6-digit code."
 
         if user.totp_secret and self._verify_totp(user.totp_secret, code):
             return True, None

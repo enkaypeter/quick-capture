@@ -64,6 +64,9 @@ def create_app(config_name: str = None) -> Flask:
     _init_session_timeout(app)
     _init_mfa_enforcement(app)
 
+    from app.services.demo_service import init_demo_reset
+    init_demo_reset(app)
+
     # Create database tables and set SQLite WAL mode
     with app.app_context():
         from sqlalchemy import event

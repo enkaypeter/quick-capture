@@ -42,9 +42,10 @@ class Config:
     # The demo account is shared, so no one person can hold its authenticator.
     # When on, it is kept enrolled and its code prompt accepts any 6 digits.
     DEMO_ACCOUNT_SHARED_MFA = _env_bool("DEMO_ACCOUNT_SHARED_MFA", True)
-    # Wipe everything the demo account created and restore the seeded demo
-    # cases this often. 0 turns the automatic reset off.
-    DEMO_RESET_INTERVAL_MINUTES = _env_int("DEMO_RESET_INTERVAL_MINUTES", 0)
+    # Nightly, at this local time ("HH:MM"), wipe everything the demo account
+    # created and restore the seeded demo cases. Empty turns it off.
+    DEMO_RESET_TIME = os.environ.get("DEMO_RESET_TIME", "")
+    DEMO_RESET_TIMEZONE = os.environ.get("DEMO_RESET_TIMEZONE", "Europe/London")
 
     # --- Session security (blocker 7: session timeout) -------------------
     SESSION_COOKIE_HTTPONLY = True
@@ -148,7 +149,7 @@ class TestingConfig(Config):
     DEMO_CASES_ENABLED = False
     # Tests use the demo account as an ordinary admin to drive real enrolment.
     DEMO_ACCOUNT_SHARED_MFA = False
-    DEMO_RESET_INTERVAL_MINUTES = 0
+    DEMO_RESET_TIME = ""
     DB_DIR = os.path.join(basedir, "instance", "test")
     SQLALCHEMY_DATABASE_URI = "sqlite:///:memory:"
     # A fixed key so encrypted-column tests are deterministic.

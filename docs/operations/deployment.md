@@ -137,16 +137,18 @@ Optional tuning, with defaults from `config.py`:
 | `RETENTION_ARCHIVED_CASE_DAYS` | 2190 | Retention for archived cases |
 | `HSTS_ENABLED` | true in production | Strict-Transport-Security |
 | `DEMO_ACCOUNT_SHARED_MFA` | false in production | Demo account accepts any 6-digit MFA code (needs `ALLOW_DEMO_IN_PRODUCTION`) |
-| `DEMO_RESET_INTERVAL_MINUTES` | 0 (off) | Reset the demo account's data this often |
+| `DEMO_RESET_TIME` | blank (off) | Nightly time (`HH:MM`) to reset the demo account's data |
+| `DEMO_RESET_TIMEZONE` | Europe/London | Timezone for `DEMO_RESET_TIME` |
 
 ### Demo deployments
 
 A shared demo login needs two things a real deployment must not have. With
 `ALLOW_DEMO_IN_PRODUCTION=true`, `DEMO_ACCOUNT_SHARED_MFA=true` keeps the demo
 account enrolled and lets its code prompt accept any 6 digits, so it can be
-handed to several people. `DEMO_RESET_INTERVAL_MINUTES` then destroys every
-case the demo account created, and restores the seeded demo cases, on the
-first request after each interval. `python -m scripts.reset_demo --apply`
+handed to several people. `DEMO_RESET_TIME` (e.g. `03:00`) then destroys
+every case the demo account created, and restores the seeded demo cases,
+once a night: the first request after that time does it, so no cron entry
+is needed, and a visitor the next morning always starts from fresh data. `python -m scripts.reset_demo --apply`
 does the same on demand. Cases created by other accounts are never touched.
 
 ## The configuration guard

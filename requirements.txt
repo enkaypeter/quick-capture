@@ -9,4 +9,6 @@ bleach==6.2.0
 cryptography==44.0.0
 pyotp==2.9.0
 qrcode==8.0
+# Timezone data for zoneinfo; slim images ship without it.
+tzdata==2025.2
 pytest==8.3.4

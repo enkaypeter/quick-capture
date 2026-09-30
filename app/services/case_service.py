@@ -7,11 +7,19 @@ from flask import current_app
 from werkzeug.datastructures import FileStorage
 from werkzeug.utils import secure_filename
 
-from app.models.case import Case, CaseCategory
-from app.models.case_attachment import CaseAttachment
+from app.models.case import (
+    ETHNICITY_CHOICES,
+    Case,
+    CaseCategory,
+    ConsentStatus,
+    Project,
+    RiskRating,
+)
+from app.models.case_attachment import AttachmentKind, CaseAttachment
 from app.models.case_interaction import CaseInteraction, InteractionTag, InteractionTagType
 from app.models.case_note import CaseNote, NoteSource
 from app.models.follow_up_task import FollowUpStatus, FollowUpTask
+from app.models.user import User
 from app.repositories.case_repository import CaseRepository
 from app.repositories.case_note_repository import CaseNoteRepository
 from app.services.audit_service import AuditService
@@ -24,6 +32,7 @@ logger = logging.getLogger(__name__)
 
 ALLOWED_AUDIO_EXTENSIONS = {"webm", "ogg", "mp3", "wav", "m4a"}
 ALLOWED_ATTACHMENT_EXTENSIONS = {"pdf", "png", "jpg", "jpeg", "doc", "docx", "txt"}
+ALLOWED_IMAGE_EXTENSIONS = {"png", "jpg", "jpeg"}
 
 
 class CaseService:
@@ -57,6 +66,12 @@ class CaseService:
         risk_notes: Optional[str] = None,
         mental_health_notes: Optional[str] = None,
         current_situation: Optional[str] = None,
+        ethnicity: Optional[str] = None,
+        ni_number: Optional[str] = None,
+        location_address: Optional[str] = None,
+        project: Optional[str] = None,
+        key_worker_id: Optional[int] = None,
+        consent_image: Optional[FileStorage] = None,
     ) -> Tuple[Optional[Case], Optional[str]]:
         """Create a new case/interaction.
 
@@ -74,6 +89,26 @@ class CaseService:
         if not category:
             category = CaseCategory.NON_CASELOAD
 
+        consent_status = consent_status or ConsentStatus.DEFAULT
+        risk_rating = risk_rating or RiskRating.DEFAULT
+        error = self._validate_choices(
+            consent_status=consent_status,
+            risk_rating=risk_rating,
+            project=project,
+            ethnicity=ethnicity,
+        )
+        if error:
+            return None, error
+
+        if key_worker_id is None:
+            key_worker_id = user_id
+        elif db.session.get(User, key_worker_id) is None:
+            return None, "Choose a key worker from the list."
+
+        if consent_image and consent_image.filename:
+            if self._extension(consent_image.filename) not in ALLOWED_IMAGE_EXTENSIONS:
+                return None, "The consent and risk image must be a PNG or JPEG."
+
         calculated_age = self._calculate_age(date_of_birth)
         if calculated_age is not None:
             age = calculated_age
@@ -86,6 +121,9 @@ class CaseService:
             voice_transcript=voice_transcript,
             date_of_birth=date_of_birth,
             physical_description=physical_description,
+            location_address=location_address,
+            other_contact=other_contact,
+            ni_number=ni_number,
         ):
             return None, "Add at least one identifying detail or note before creating a case."
 
@@ -117,12 +155,17 @@ class CaseService:
             gender=gender or None,
             physical_description=physical_description or None,
             other_contact=other_contact or None,
-            consent_status=consent_status or "unknown",
+            consent_status=consent_status,
             consent_date=consent_date or None,
-            risk_rating=risk_rating or "unknown",
+            risk_rating=risk_rating,
             risk_notes=risk_notes or None,
             mental_health_notes=mental_health_notes or None,
             current_situation=current_situation or None,
+            ethnicity=ethnicity or None,
+            ni_number=(ni_number or "").strip().upper() or None,
+            location_address=location_address or None,
+            project=project or None,
+            assigned_user_id=key_worker_id,
         )
 
         # Audit: log case creation
@@ -149,6 +192,14 @@ class CaseService:
                 user_id=user_id,
             )
 
+        if consent_image and consent_image.filename:
+            self.add_attachment(
+                case_id=case.id,
+                user_id=user_id,
+                file=consent_image,
+                kind=AttachmentKind.CONSENT_RISK,
+            )
+
         return case, None
 
     def get_cases_for_user(self, user_id: int) -> list[Case]:
@@ -156,6 +207,12 @@ class CaseService:
 
     def search_cases(self, query: str) -> list[Case]:
         return self.case_repo.search_active(query)
+
+    def get_cases_needing_review(self) -> list[Case]:
+        return self.case_repo.get_needing_review()
+
+    def get_key_worker_choices(self) -> list[User]:
+        return User.query.order_by(User.first_name.asc(), User.id.asc()).all()
 
     def get_case(self, case_id: int) -> Optional[Case]:
         return self.case_repo.get_by_id(case_id)
@@ -181,12 +238,42 @@ class CaseService:
         risk_notes: Optional[str] = None,
         mental_health_notes: Optional[str] = None,
         current_situation: Optional[str] = None,
+        ethnicity: Optional[str] = None,
+        location_address: Optional[str] = None,
+        project: Optional[str] = None,
+        key_worker_id=None,
     ) -> Tuple[Optional[Case], Optional[str]]:
         """Update editable case fields with audit logging.
 
-        Location, identifier and created_at remain immutable.
+        The what3words location, identifier and created_at remain immutable.
+        A field passed as None is left unchanged; an empty string clears it.
         """
+        error = self._validate_choices(
+            consent_status=consent_status or None,
+            risk_rating=risk_rating or None,
+            project=project or None,
+            ethnicity=ethnicity or None,
+        )
+        if error:
+            return None, error
+
         updates = {}
+        if key_worker_id is not None:
+            key_worker_id, error = self._resolve_key_worker(key_worker_id)
+            if error:
+                return None, error
+            if key_worker_id != case.assigned_user_id:
+                old_worker = db.session.get(User, case.assigned_user_id) if case.assigned_user_id else None
+                new_worker = db.session.get(User, key_worker_id) if key_worker_id else None
+                self.audit_service.log_update(
+                    case_id=case.id,
+                    user_id=user_id,
+                    field_name="key_worker",
+                    old_value=old_worker.first_name if old_worker else "",
+                    new_value=new_worker.first_name if new_worker else "",
+                )
+                updates["assigned_user_id"] = key_worker_id
+
         editable_fields = {
             "full_name": full_name,
             "phone_number": phone_number,
@@ -202,6 +289,9 @@ class CaseService:
             "risk_notes": risk_notes,
             "mental_health_notes": mental_health_notes,
             "current_situation": current_situation,
+            "ethnicity": ethnicity,
+            "location_address": location_address,
+            "project": project,
         }
         calculated_age = self._calculate_age(date_of_birth)
         if calculated_age is not None:
@@ -218,6 +308,8 @@ class CaseService:
                     return None, "Age must be a number."
             elif isinstance(value, str):
                 value = value.strip() or None
+                if field_name == "ni_number" and value:
+                    value = value.upper()
 
             old_value = getattr(case, field_name)
             if value != old_value:
@@ -417,13 +509,16 @@ class CaseService:
         user_id: int,
         file: FileStorage,
         interaction_id: Optional[int] = None,
+        kind: Optional[str] = None,
     ) -> Tuple[Optional[CaseAttachment], Optional[str]]:
         if not file or not file.filename:
             return None, "Choose a file to upload."
 
-        ext = file.filename.rsplit(".", 1)[-1].lower() if "." in file.filename else ""
+        ext = self._extension(file.filename)
         if ext not in ALLOWED_ATTACHMENT_EXTENSIONS:
             return None, "Unsupported file type."
+        if kind == AttachmentKind.CONSENT_RISK and ext not in ALLOWED_IMAGE_EXTENSIONS:
+            return None, "The consent and risk image must be a PNG or JPEG."
 
         case_dir = os.path.join(current_app.config["UPLOAD_FOLDER"], str(case_id))
         os.makedirs(case_dir, exist_ok=True)
@@ -442,6 +537,7 @@ class CaseService:
             stored_path=stored_path,
             content_type=file.content_type,
             size_bytes=os.path.getsize(absolute_path),
+            kind=kind,
         )
         db.session.add(attachment)
         db.session.commit()
@@ -466,11 +562,12 @@ class CaseService:
         for tag in InteractionTag.query.all():
             tag_counts[tag.label] = tag_counts.get(tag.label, 0) + 1
 
-        status_counts = {}
+        project_counts = {}
         risk_counts = {}
         situation_counts = {}
         for case in cases:
-            status_counts[case.category] = status_counts.get(case.category, 0) + 1
+            project_label = Project.LABELS.get(case.project, "Not set")
+            project_counts[project_label] = project_counts.get(project_label, 0) + 1
             risk_counts[case.risk_rating] = risk_counts.get(case.risk_rating, 0) + 1
             if case.current_situation:
                 situation_counts[case.current_situation] = situation_counts.get(case.current_situation, 0) + 1
@@ -478,7 +575,7 @@ class CaseService:
         return {
             "total_cases": len(cases),
             "total_interactions": len(interactions),
-            "status_counts": status_counts,
+            "project_counts": project_counts,
             "risk_counts": risk_counts,
             "situation_counts": situation_counts,
             "tag_counts": tag_counts,
@@ -686,6 +783,39 @@ class CaseService:
         file.save(os.path.join(upload_dir, filename))
         return filename
 
+    @staticmethod
+    def _extension(filename: str) -> str:
+        return filename.rsplit(".", 1)[-1].lower() if "." in filename else ""
+
+    def _validate_choices(
+        self,
+        consent_status: Optional[str] = None,
+        risk_rating: Optional[str] = None,
+        project: Optional[str] = None,
+        ethnicity: Optional[str] = None,
+    ) -> Optional[str]:
+        if consent_status and consent_status not in ConsentStatus.CHOICES:
+            return "Choose a consent status from the list."
+        if risk_rating and risk_rating not in RiskRating.CHOICES:
+            return "Choose a risk rating from the list."
+        if project and project not in Project.CHOICES:
+            return "Choose a project from the list."
+        if ethnicity and ethnicity not in ETHNICITY_CHOICES:
+            return "Choose an ethnicity from the list."
+        return None
+
+    def _resolve_key_worker(self, key_worker_id) -> Tuple[Optional[int], Optional[str]]:
+        """Turn a submitted key worker value into a user id (None clears it)."""
+        if key_worker_id in ("", None):
+            return None, None
+        try:
+            worker_id = int(key_worker_id)
+        except (TypeError, ValueError):
+            return None, "Choose a key worker from the list."
+        if db.session.get(User, worker_id) is None:
+            return None, "Choose a key worker from the list."
+        return worker_id, None
+
     def _has_meaningful_content(self, html_content: str) -> bool:
         """Check if HTML content has actual text (not just empty tags).
 
@@ -723,8 +853,14 @@ class CaseService:
         voice_transcript: Optional[str],
         date_of_birth: Optional[str],
         physical_description: Optional[str],
+        location_address: Optional[str] = None,
+        other_contact: Optional[str] = None,
+        ni_number: Optional[str] = None,
     ) -> bool:
         return any([
+            bool((location_address or "").strip()),
+            bool((other_contact or "").strip()),
+            bool((ni_number or "").strip()),
             bool((full_name or "").strip()),
             bool((phone_number or "").strip()),
             bool((location_w3w or "").strip()),

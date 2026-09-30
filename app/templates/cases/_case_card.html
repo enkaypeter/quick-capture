@@ -1,0 +1,32 @@
+<a href="{{ url_for('cases.view_case', case_id=case.id) }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:shadow-sm transition-shadow">
+    <div class="flex items-start justify-between">
+        <div class="min-w-0 flex-1">
+            <div class="flex flex-wrap items-center gap-2 mb-1">
+                <h3 class="text-sm font-semibold text-gray-900 truncate">
+                    {{ case.full_name or case.identifier }}
+                </h3>
+                {% if case.project %}
+                <span class="inline-flex items-center rounded-full bg-brand-50 px-2 py-0.5 text-xs font-medium text-brand-700">
+                    {{ project_labels.get(case.project, case.project) }}
+                </span>
+                {% endif %}
+                <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
+                    {% if case.risk_rating == 'red' %}bg-red-100 text-red-700
+                    {% elif case.risk_rating == 'amber' %}bg-amber-100 text-amber-700
+                    {% elif case.risk_rating == 'green' %}bg-green-100 text-green-700
+                    {% else %}bg-gray-100 text-gray-600{% endif %}">
+                    {% if case.risk_rating in ['red', 'amber', 'green'] %}risk: {{ case.risk_rating }}{% else %}risk: not set{% endif %}
+                </span>
+            </div>
+            <p class="text-xs text-gray-500">
+                {{ case.identifier }}
+                {% if case.location_w3w %} &middot; {{ case.location_w3w }}{% endif %}
+                {% if case.assigned_worker %} &middot; Key worker: {{ case.assigned_worker.first_name }}{% endif %}
+                {% if case.current_situation %} &middot; {{ case.current_situation|replace('_', ' ') }}{% endif %}
+            </p>
+        </div>
+        <span class="text-xs text-gray-400 whitespace-nowrap ml-3">
+            <time class="local-date" datetime="{{ case.created_at.isoformat() }}Z">{{ case.created_at.strftime('%d %b %Y') }}</time>
+        </span>
+    </div>
+</a>

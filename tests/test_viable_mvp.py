@@ -75,7 +75,8 @@ def test_demo_cases_are_seeded_for_local_demo_account(app, client):
     assert FollowUpTask.query.count() >= 8
     assert CaseAttachment.query.count() >= 4
 
-    response = login_admin(client)
+    login_admin(client)
+    response = client.get("/cases")
     assert b"DEMO-OUTREACH-001" in response.data
     assert b"Demo Alex Reed" in response.data
 
@@ -214,20 +215,18 @@ def test_empty_case_is_rejected(client):
     assert Case.query.count() == 0
 
 
-def test_case_status_language_explains_documented_terms(client):
+def test_case_status_is_replaced_by_project_everywhere(client):
     register(client, "worker@example.org")
 
     create_page = client.get("/cases/new")
-    assert b"Case status" in create_page.data
-    assert b"Non-caseload" in create_page.data
-    assert b"not currently on the active caseload" in create_page.data
+    assert b"Case status" not in create_page.data
+    assert b"Project" in create_page.data
 
     create_case(client)
     case = Case.query.one()
     detail_page = client.get(f"/cases/{case.id}")
-    assert b"Case status" in detail_page.data
-    assert b"actively supported by the team" in detail_page.data
-    assert b"formal client record with fuller identity details" in detail_page.data
+    assert b"Case status" not in detail_page.data
+    assert b"Project" in detail_page.data
 
 
 def test_date_of_birth_autofills_age_on_create(client):
@@ -271,7 +270,7 @@ def test_cases_are_team_visible_and_searchable(client):
     case = Case.query.filter_by(full_name="Blue Hat").one()
     detail = client.get(f"/cases/{case.id}")
     assert detail.status_code == 200
-    assert b"Quick Capture" in detail.data
+    assert b"Support Provided" in detail.data
 
 
 def test_identifier_generation_does_not_reuse_archived_identifiers(client):

@@ -1,17 +1,14 @@
 {% extends "base.html" %}
-{% block title %}Cases - Simon on the Streets{% endblock %}
+{% block title %}Home - Simon on the Streets{% endblock %}
 {% block content %}
-{% set category_labels = {'non-caseload': 'Non-caseload', 'caseload': 'Caseload', 'client': 'Client'} %}
+{% set project_labels = {'core': 'Core', 'settled': 'Settled', 'eu': 'EU'} %}
 <div class="mb-6">
     <div class="flex items-center justify-between gap-3">
-        <h1 class="text-2xl font-bold">Cases</h1>
-        <div class="flex gap-2">
-            <a href="{{ url_for('cases.reports') }}" class="inline-flex items-center rounded-lg border border-gray-300 px-3 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors">Reports</a>
-            <a href="{{ url_for('cases.create_case') }}" class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors">
-                <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-                New Case
-            </a>
-        </div>
+        <h1 class="text-2xl font-bold">Home</h1>
+        <a href="{{ url_for('cases.create_case') }}" class="inline-flex items-center gap-1 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors">
+            <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
+            New Case
+        </a>
     </div>
     <form method="GET" class="mt-4">
         <label for="case-search" class="sr-only">Search cases</label>
@@ -25,11 +22,46 @@
     </form>
 </div>
 
+{% if results is not none %}
+<section class="mb-6">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-gray-900">{{ results|length }} result{{ '' if results|length == 1 else 's' }} for &ldquo;{{ query }}&rdquo;</h2>
+        <a href="{{ url_for('cases.list_cases') }}" class="text-sm text-brand-600 hover:underline">Clear search</a>
+    </div>
+    {% if results %}
+    <div class="space-y-3">
+        {% for case in results %}
+        {% include "cases/_case_card.html" %}
+        {% endfor %}
+    </div>
+    {% else %}
+    <p class="py-8 text-center text-sm text-gray-500">No cases match that search.</p>
+    {% endif %}
+</section>
+{% else %}
+<div class="grid gap-3 sm:grid-cols-3 mb-6">
+    <a href="{{ url_for('cases.active_cases') }}" class="rounded-lg border border-gray-200 bg-white p-4 hover:shadow-sm transition-shadow">
+        <p class="text-sm text-gray-500">Active cases</p>
+        <p class="mt-1 text-3xl font-bold text-gray-900">{{ active_count }}</p>
+    </a>
+    <a href="{{ url_for('cases.follow_up_actions') }}" class="rounded-lg border border-gray-200 bg-white p-4 hover:shadow-sm transition-shadow">
+        <p class="text-sm text-gray-500">Follow-up actions</p>
+        <p class="mt-1 text-3xl font-bold text-gray-900">{{ follow_up_count }}</p>
+    </a>
+    <a href="{{ url_for('cases.review_cases') }}" class="rounded-lg border border-gray-200 bg-white p-4 hover:shadow-sm transition-shadow">
+        <p class="text-sm text-gray-500">Cases to review</p>
+        <p class="mt-1 text-3xl font-bold text-gray-900">{{ review_count }}</p>
+    </a>
+</div>
+
 {% if follow_ups %}
-<section class="mb-6 rounded-lg border border-amber-200 bg-amber-50 p-4">
-    <h2 class="text-sm font-semibold text-amber-900 mb-3">Upcoming follow-ups</h2>
+<section class="rounded-lg border border-amber-200 bg-amber-50 p-4">
+    <div class="flex items-center justify-between mb-3">
+        <h2 class="text-sm font-semibold text-amber-900">Upcoming follow-ups</h2>
+        <a href="{{ url_for('cases.follow_up_actions') }}" class="text-xs font-medium text-amber-900 hover:underline">See all</a>
+    </div>
     <div class="space-y-2">
-        {% for task in follow_ups[:5] %}
+        {% for task in follow_ups %}
         <a href="{{ url_for('cases.view_case', case_id=task.case_id) }}" class="block text-sm text-amber-900 hover:underline">
             {{ task.due_date or 'No date' }} · {{ task.title }} · {{ task.case.full_name or task.case.identifier }}
         </a>
@@ -37,54 +69,5 @@
     </div>
 </section>
 {% endif %}
-
-{% if cases %}
-<div class="space-y-3">
-    {% for case in cases %}
-    <a href="{{ url_for('cases.view_case', case_id=case.id) }}" class="block rounded-lg border border-gray-200 bg-white p-4 hover:shadow-sm transition-shadow">
-        <div class="flex items-start justify-between">
-            <div class="min-w-0 flex-1">
-                <div class="flex items-center gap-2 mb-1">
-                    <h3 class="text-sm font-semibold text-gray-900 truncate">
-                        {{ case.full_name or case.identifier }}
-                    </h3>
-                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
-                        {% if case.category == 'client' %}bg-green-100 text-green-700
-                        {% elif case.category == 'caseload' %}bg-blue-100 text-blue-700
-                        {% else %}bg-gray-100 text-gray-600{% endif %}">
-                        {{ category_labels.get(case.category, case.category) }}
-                    </span>
-                    <span class="inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium
-                        {% if case.risk_rating == 'red' %}bg-red-100 text-red-700
-                        {% elif case.risk_rating == 'amber' %}bg-amber-100 text-amber-700
-                        {% elif case.risk_rating == 'green' %}bg-green-100 text-green-700
-                        {% else %}bg-gray-100 text-gray-600{% endif %}">
-                        risk: {{ case.risk_rating }}
-                    </span>
-                </div>
-                <p class="text-xs text-gray-500">
-                    {{ case.identifier }}
-                    {% if case.location_w3w %} &middot; {{ case.location_w3w }}{% endif %}
-                    {% if case.current_situation %} &middot; {{ case.current_situation|replace('_', ' ') }}{% endif %}
-                </p>
-            </div>
-            <span class="text-xs text-gray-400 whitespace-nowrap ml-3">
-                <time class="local-date" datetime="{{ case.created_at.isoformat() }}Z">{{ case.created_at.strftime('%d %b %Y') }}</time>
-            </span>
-        </div>
-    </a>
-    {% endfor %}
-</div>
-{% else %}
-<div class="text-center py-12">
-    <svg class="mx-auto w-12 h-12 text-gray-300" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
-    </svg>
-    <p class="mt-3 text-sm text-gray-500">No cases yet. Create your first interaction.</p>
-    <a href="{{ url_for('cases.create_case') }}" class="mt-4 inline-flex items-center gap-1 rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white hover:bg-brand-700 transition-colors">
-        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"/></svg>
-        New Case
-    </a>
-</div>
 {% endif %}
 {% endblock %}

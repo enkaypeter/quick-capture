@@ -3,7 +3,7 @@
 {% block content %}
 <div class="mx-auto max-w-lg">
     <h1 class="text-2xl font-bold mb-1">Create New Case</h1>
-    <p class="text-sm text-gray-500 mb-6">Add at least one identifying detail, note, or location.</p>
+    <p class="text-sm text-gray-500 mb-6">Enter whatever you can &ndash; nothing is required beyond one identifying detail, note or location.</p>
 
     <form method="POST" enctype="multipart/form-data" id="case-form" class="space-y-5">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
@@ -62,10 +62,18 @@
                 Share my location
             </button>
             <p id="location-status" class="mt-1 text-xs text-gray-500 hidden"></p>
+
+            <details class="mt-3 rounded-lg border border-gray-100 p-3">
+                <summary class="cursor-pointer text-sm font-medium text-gray-700">Address <span class="text-gray-400 font-normal">(optional)</span></summary>
+                <div class="mt-3">
+                    <label for="location_address" class="sr-only">Address</label>
+                    <textarea id="location_address" name="location_address" rows="3" placeholder="Street, town, postcode &ndash; whatever you know" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                </div>
+            </details>
         </div>
 
         <details class="rounded-lg border border-gray-200 bg-white p-4">
-            <summary class="cursor-pointer text-sm font-semibold text-gray-800">Identity & matching</summary>
+            <summary class="cursor-pointer text-sm font-semibold text-gray-800">Personal details</summary>
             <div class="mt-4 grid gap-4">
                 <div>
                     <label for="date_of_birth" class="block text-sm font-medium text-gray-700 mb-1">Date of birth</label>
@@ -80,45 +88,61 @@
                     <input type="text" id="gender" name="gender" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
                 </div>
                 <div>
+                    <label for="ethnicity" class="block text-sm font-medium text-gray-700 mb-1">Ethnicity</label>
+                    <select id="ethnicity" name="ethnicity" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
+                        <option value="">Not recorded</option>
+                        {% for choice in ethnicities %}
+                        <option value="{{ choice }}">{{ choice }}</option>
+                        {% endfor %}
+                    </select>
+                </div>
+                <div>
                     <label for="physical_description" class="block text-sm font-medium text-gray-700 mb-1">Physical description</label>
                     <textarea id="physical_description" name="physical_description" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
                 </div>
                 <div>
                     <label for="other_contact" class="block text-sm font-medium text-gray-700 mb-1">Other contact details</label>
-                    <input type="text" id="other_contact" name="other_contact" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    <input type="text" id="other_contact" name="other_contact" placeholder="e.g. email, or a family member's phone number" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" />
+                    <p class="mt-1 text-xs text-gray-500">For example an email address or a family member's phone number.</p>
+                </div>
+                <div>
+                    <label for="ni_number" class="block text-sm font-medium text-gray-700 mb-1">National Insurance number</label>
+                    <input type="text" id="ni_number" name="ni_number" autocomplete="off" placeholder="e.g. QQ 12 34 56 C" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm uppercase focus:outline-none focus:ring-2 focus:ring-brand-500" />
                 </div>
             </div>
         </details>
 
-        <!-- Case status -->
+        <!-- Project -->
         <div>
-            <label for="category" class="block text-sm font-semibold text-gray-800 mb-1">Case status</label>
-            <select
-                id="category"
-                name="category"
-                class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent"
-            >
-                <option value="non-caseload" selected>Non-caseload</option>
-                <option value="caseload">Caseload</option>
-                <option value="client">Client</option>
+            <label for="project" class="block text-sm font-semibold text-gray-800 mb-1">Project</label>
+            <select id="project" name="project" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                <option value="">Select a project</option>
+                {% for value, label in projects.items() %}
+                <option value="{{ value }}">{{ label }}</option>
+                {% endfor %}
             </select>
-            <dl class="mt-2 grid gap-1 text-xs text-gray-500">
-                <div><dt class="inline font-medium text-gray-600">Non-caseload:</dt> <dd class="inline">not currently on the active caseload.</dd></div>
-                <div><dt class="inline font-medium text-gray-600">Caseload:</dt> <dd class="inline">actively supported by the team.</dd></div>
-                <div><dt class="inline font-medium text-gray-600">Client:</dt> <dd class="inline">formal client record with fuller identity details.</dd></div>
-            </dl>
+        </div>
+
+        <!-- Key worker -->
+        <div>
+            <label for="key_worker_id" class="block text-sm font-semibold text-gray-800 mb-1">Allocated key worker</label>
+            <select id="key_worker_id" name="key_worker_id" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500 focus:border-transparent">
+                {% for worker in key_workers %}
+                <option value="{{ worker.id }}" {% if worker.id == current_user.id %}selected{% endif %}>{{ worker.first_name }}{% if worker.id == current_user.id %} (you){% endif %}</option>
+                {% endfor %}
+            </select>
+            <p class="mt-1 text-xs text-gray-500">Defaults to you. Choose someone else if the case is being allocated to them.</p>
         </div>
 
         <details class="rounded-lg border border-gray-200 bg-white p-4">
-            <summary class="cursor-pointer text-sm font-semibold text-gray-800">Consent, risk & reporting</summary>
+            <summary class="cursor-pointer text-sm font-semibold text-gray-800">Consent &amp; risk</summary>
             <div class="mt-4 grid gap-4">
                 <div>
                     <label for="consent_status" class="block text-sm font-medium text-gray-700 mb-1">Consent status</label>
                     <select id="consent_status" name="consent_status" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                        <option value="unknown">Unknown</option>
-                        <option value="given">Given</option>
-                        <option value="declined">Declined</option>
-                        <option value="not_required">Not required yet</option>
+                        {% for value, label in consent_options.items() %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div>
@@ -128,10 +152,9 @@
                 <div>
                     <label for="risk_rating" class="block text-sm font-medium text-gray-700 mb-1">Risk rating</label>
                     <select id="risk_rating" name="risk_rating" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500">
-                        <option value="unknown">Unknown</option>
-                        <option value="green">Green</option>
-                        <option value="amber">Amber</option>
-                        <option value="red">Red</option>
+                        {% for value, label in risk_options.items() %}
+                        <option value="{{ value }}">{{ label }}</option>
+                        {% endfor %}
                     </select>
                 </div>
                 <div>
@@ -139,8 +162,9 @@
                     <textarea id="risk_notes" name="risk_notes" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
                 </div>
                 <div>
-                    <label for="mental_health_notes" class="block text-sm font-medium text-gray-700 mb-1">Mental health notes</label>
-                    <textarea id="mental_health_notes" name="mental_health_notes" rows="3" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500"></textarea>
+                    <label for="consent_image" class="block text-sm font-medium text-gray-700 mb-1">Image <span class="text-gray-400 font-normal">(optional)</span></label>
+                    <input type="file" id="consent_image" name="consent_image" accept="image/png,image/jpeg" class="block w-full text-sm text-gray-700" />
+                    <p class="mt-1 text-xs text-gray-500">For example a photo of a signed consent form. PNG or JPEG.</p>
                 </div>
                 <div>
                     <label for="current_situation" class="block text-sm font-medium text-gray-700 mb-1">Current situation</label>
@@ -157,10 +181,13 @@
         </details>
 
         <!-- Case Notes -->
-        <div>
-            <label class="block text-sm font-semibold text-gray-800 mb-1">Case Notes</label>
-            <textarea id="notes" name="notes" rows="5" class="offline-draft w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" data-draft-key="new-case-notes"></textarea>
-        </div>
+        <details id="notes-details" class="rounded-lg border border-gray-200 bg-white p-4">
+            <summary class="cursor-pointer text-sm font-semibold text-gray-800">Case notes <span class="text-gray-400 font-normal">(optional)</span></summary>
+            <div class="mt-4">
+                <label for="notes" class="sr-only">Case notes</label>
+                <textarea id="notes" name="notes" rows="5" class="offline-draft w-full rounded-lg border border-gray-300 px-3 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-brand-500" data-draft-key="new-case-notes"></textarea>
+            </div>
+        </details>
 
         <!-- Voice Note -->
         <div>
@@ -345,6 +372,7 @@
             var text = transcriptionText.textContent;
             if (text) {
                 var notes = document.getElementById('notes');
+                document.getElementById('notes-details').open = true;
                 if (notes.value.trim()) {
                     notes.value = notes.value + '\n' + text;
                 } else {
@@ -356,7 +384,11 @@
         document.querySelectorAll('.offline-draft').forEach(function(input) {
             var key = input.dataset.draftKey;
             var stored = localStorage.getItem(key);
-            if (stored && !input.value) input.value = stored;
+            if (stored && !input.value) {
+                input.value = stored;
+                var holder = input.closest('details');
+                if (holder) holder.open = true;
+            }
             input.addEventListener('input', function() {
                 localStorage.setItem(key, input.value);
             });

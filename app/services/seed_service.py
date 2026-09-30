@@ -8,8 +8,8 @@ from werkzeug.security import check_password_hash, generate_password_hash
 
 from app.extensions import db
 from app.models.audit_log import AuditAction, AuditLog
-from app.models.case import Case
-from app.models.case_attachment import CaseAttachment
+from app.models.case import Case, ConsentStatus, RiskRating
+from app.models.case_attachment import AttachmentKind, CaseAttachment
 from app.models.case_interaction import CaseInteraction, InteractionTag, InteractionTagType
 from app.models.case_note import CaseNote, NoteSource
 from app.models.follow_up_task import FollowUpStatus, FollowUpTask
@@ -26,11 +26,13 @@ DEMO_CASE_DEFINITIONS = [
         "physical_description": "Blue coat, dark rucksack, usually near the market entrance.",
         "location_w3w": "market.safe.demo",
         "category": "caseload",
+        "project": "core",
+        "ethnicity": "White",
+        "location_address": "Doorway beside the market entrance, High Street",
         "consent_status": "given",
         "consent_days_ago": 21,
         "risk_rating": "amber",
         "risk_notes": "Rough sleeping reported. No immediate safeguarding disclosure.",
-        "mental_health_notes": "Anxiety mentioned during evening outreach.",
         "current_situation": "rough_sleeping",
         "created_days_ago": 28,
         "notes": [
@@ -73,6 +75,7 @@ DEMO_CASE_DEFINITIONS = [
     },
     {
         "identifier": "DEMO-CLIENT-002",
+        "consent_image": True,
         "full_name": "Demo Sam Patel",
         "phone_number": "07700 900002",
         "age": 46,
@@ -81,6 +84,9 @@ DEMO_CASE_DEFINITIONS = [
         "other_contact": "Prefers phone contact after 10:00.",
         "location_w3w": "cafe.support.demo",
         "category": "client",
+        "project": "settled",
+        "ethnicity": "Black, Black British, Caribbean or African",
+        "location_address": "Flat 3, Demo House, Example Road",
         "ni_number": "QQ123456C",
         "consent_status": "given",
         "consent_days_ago": 40,
@@ -124,6 +130,7 @@ DEMO_CASE_DEFINITIONS = [
         "physical_description": "Grey sleeping bag, green hat, declined to give a name.",
         "location_w3w": "station.north.demo",
         "category": "non-caseload",
+        "project": "core",
         "consent_status": "not_required",
         "risk_rating": "red",
         "risk_notes": "Seen late evening in cold weather. Welfare concern logged.",
@@ -154,11 +161,13 @@ DEMO_CASE_DEFINITIONS = [
         "physical_description": "Usually carrying a black holdall.",
         "location_w3w": "clinic.path.demo",
         "category": "caseload",
+        "project": "eu",
+        "ethnicity": "White",
+        "ni_number": "QQ456789C",
         "consent_status": "given",
         "consent_days_ago": 12,
         "risk_rating": "amber",
         "risk_notes": "Medication routine inconsistent.",
-        "mental_health_notes": "Reports low mood and poor sleep.",
         "current_situation": "hotel",
         "created_days_ago": 18,
         "notes": [
@@ -192,6 +201,9 @@ DEMO_CASE_DEFINITIONS = [
         "physical_description": "Often meets near the library steps.",
         "location_w3w": "library.steps.demo",
         "category": "client",
+        "project": "settled",
+        "ethnicity": "Mixed or multiple ethnic groups",
+        "location_address": "Room 4, Demo Hostel, Station Road",
         "ni_number": "QQ234567C",
         "consent_status": "given",
         "consent_days_ago": 33,
@@ -235,8 +247,10 @@ DEMO_CASE_DEFINITIONS = [
         "physical_description": "Red coat, attends day shelter intermittently.",
         "location_w3w": "shelter.entry.demo",
         "category": "non-caseload",
-        "consent_status": "unknown",
-        "risk_rating": "unknown",
+        "project": "core",
+        "ethnicity": "Prefer not to say",
+        "consent_status": "not_required",
+        "risk_rating": "green",
         "current_situation": "unknown",
         "created_days_ago": 7,
         "notes": [
@@ -255,6 +269,7 @@ DEMO_CASE_DEFINITIONS = [
     },
     {
         "identifier": "DEMO-SAFEGUARD-007",
+        "consent_image": True,
         "full_name": "Demo Taylor Green",
         "phone_number": "07700 900007",
         "age": 41,
@@ -262,11 +277,12 @@ DEMO_CASE_DEFINITIONS = [
         "physical_description": "Usually seen with a small suitcase.",
         "location_w3w": "bridge.care.demo",
         "category": "caseload",
+        "project": "core",
+        "ethnicity": "Asian or Asian British",
         "consent_status": "given",
         "consent_days_ago": 9,
         "risk_rating": "red",
         "risk_notes": "Safeguarding concern raised after disclosure during outreach.",
-        "mental_health_notes": "Crisis support discussed. Worker to avoid repeated questioning.",
         "current_situation": "rough_sleeping",
         "created_days_ago": 15,
         "notes": [
@@ -305,6 +321,9 @@ DEMO_CASE_DEFINITIONS = [
         "physical_description": "Meets at temporary accommodation reception.",
         "location_w3w": "reception.temp.demo",
         "category": "client",
+        "project": "settled",
+        "ethnicity": "White",
+        "location_address": "Unit 2, Demo Lodge, Canal Street",
         "ni_number": "QQ345678C",
         "consent_status": "given",
         "consent_days_ago": 70,
@@ -336,6 +355,8 @@ DEMO_CASE_DEFINITIONS = [
         "physical_description": "Black hoodie, sleeping near bus station steps.",
         "location_w3w": "bus.steps.demo",
         "category": "non-caseload",
+        "project": "eu",
+        "ethnicity": "Other ethnic group",
         "consent_status": "not_required",
         "risk_rating": "amber",
         "current_situation": "rough_sleeping",
@@ -366,6 +387,8 @@ DEMO_CASE_DEFINITIONS = [
         "other_contact": "Email preferred via support contact on file.",
         "location_w3w": "centre.appointment.demo",
         "category": "caseload",
+        "project": "eu",
+        "ethnicity": "Asian or Asian British",
         "consent_status": "declined",
         "risk_rating": "amber",
         "risk_notes": "Consent discussion to be revisited gently next appointment.",
@@ -493,12 +516,14 @@ def _create_demo_case(user: User, case_data: dict) -> None:
         other_contact=case_data.get("other_contact"),
         location_w3w=case_data.get("location_w3w"),
         category=case_data["category"],
+        project=case_data.get("project"),
+        ethnicity=case_data.get("ethnicity"),
+        location_address=case_data.get("location_address") or None,
         ni_number=case_data.get("ni_number"),
-        consent_status=case_data.get("consent_status", "unknown"),
+        consent_status=case_data.get("consent_status", ConsentStatus.DEFAULT),
         consent_date=_date_days_ago(case_data.get("consent_days_ago")),
-        risk_rating=case_data.get("risk_rating", "unknown"),
+        risk_rating=case_data.get("risk_rating", RiskRating.DEFAULT),
         risk_notes=case_data.get("risk_notes"),
-        mental_health_notes=case_data.get("mental_health_notes"),
         current_situation=case_data.get("current_situation"),
         created_at=created_at,
         updated_at=now - timedelta(days=case_data.get("updated_days_ago", 0)),
@@ -586,6 +611,21 @@ def _create_demo_case(user: User, case_data: dict) -> None:
             )
         )
 
+    if case_data.get("consent_image"):
+        stored_path, size_bytes = _write_demo_consent_image(case.identifier)
+        db.session.add(
+            CaseAttachment(
+                case_id=case.id,
+                user_id=user.id,
+                original_filename="consent-form.png",
+                stored_path=stored_path,
+                content_type="image/png",
+                size_bytes=size_bytes,
+                kind=AttachmentKind.CONSENT_RISK,
+                created_at=created_at,
+            )
+        )
+
     for attachment_data in case_data.get("attachments", []):
         stored_path, size_bytes = _write_demo_attachment(
             case.identifier,
@@ -603,6 +643,13 @@ def _create_demo_case(user: User, case_data: dict) -> None:
                 created_at=created_at,
             )
         )
+
+
+# A 1x1 transparent PNG, standing in for a photographed consent form.
+_DEMO_CONSENT_IMAGE = bytes.fromhex(
+    "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"
+    "0000000d49444154789c6360000002000001e221bc330000000049454e44ae426082"
+)
 
 
 def _dob_for_age(age: Optional[int]) -> Optional[str]:
@@ -623,6 +670,18 @@ def _date_days_ago(days_ago: Optional[int]) -> Optional[str]:
 
 def _date_offset(days: int) -> str:
     return (date.today() + timedelta(days=days)).isoformat()
+
+
+def _write_demo_consent_image(identifier: str) -> tuple[str, int]:
+    directory = os.path.join(current_app.config["UPLOAD_FOLDER"], "demo")
+    os.makedirs(directory, exist_ok=True)
+
+    stored_name = f"{identifier.lower()}-consent-form.png"
+    absolute_path = os.path.join(directory, stored_name)
+    with open(absolute_path, "wb") as file:
+        file.write(_DEMO_CONSENT_IMAGE)
+
+    return os.path.join("demo", stored_name), os.path.getsize(absolute_path)
 
 
 def _write_demo_attachment(identifier: str, filename: str, content: str) -> tuple[str, int]:

@@ -61,7 +61,7 @@ def test_every_case_appears_on_every_worker_s_dashboard(client, app):
     other = app.test_client()
     register(other, "two@example.org")
 
-    assert b"SOTS-0001" in other.get("/dashboard").data
+    assert b"SOTS-0001" in other.get("/cases").data
 
 
 def test_an_anonymous_visitor_can_read_nothing(client):

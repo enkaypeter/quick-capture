@@ -54,7 +54,9 @@ optional for workers and required for admins.
 3. Search by name, case ID, phone, date of birth, location or description.
 4. Select the case you need.
 
-The case list shows the case status and risk rating.
+`Home` also has three boxes: `Active cases` (everyone on the books), `Follow-up actions` (open actions across all cases) and `Cases to review` (cases with a voice-note transcript nobody has checked yet). Select a box to see its list. The upcoming follow-ups feed sits underneath.
+
+Case lists show the project, key worker and risk rating.
 
 ## Create A New Case
 
@@ -70,30 +72,24 @@ Useful details include:
 - physical description
 - case note
 
-3. Choose the case status.
-4. Add consent, risk or current situation if you know it.
-5. Add a note if needed.
-6. Select `Create Case`.
+3. Choose the `Project`: `Core`, `Settled` or `EU`.
+4. The `Allocated key worker` starts as you. Change it from the list if the case is going to someone else.
+5. Open `Personal details` for date of birth, gender, ethnicity, description, other contact details (for example an email or a family member's phone number) and National Insurance number.
+6. Open `Consent & risk` for consent, risk rating, risk notes, an optional image, and current situation.
+7. Open `Case notes` if you want to add a note. It is optional and stays hidden until you open it.
+8. Select `Create Case`.
+
+Location can be a what3words address, an address (open the `Address` drop-down), or both.
 
 You do not need to fill every field at the start. Add what you know.
-
-## Use Case Status
-
-`Case status` tells the team where the person is in the support process.
-
-Use `Non-caseload` when the person is not on the active caseload.
-
-Use `Caseload` when the person is being supported by the team.
-
-Use `Client` when this is a formal client record with fuller identity details.
 
 ## Add Date Of Birth And Age
 
 1. Open the case.
-2. Open `Identity & Matching`.
+2. `Personal details` is at the top of the case.
 3. Enter `Date of birth`.
 4. The app fills `Age`.
-5. Select `Save identity`.
+5. Select `Save personal details`.
 
 If you do not know the date of birth, you can type the age yourself.
 
@@ -102,7 +98,7 @@ If you do not know the date of birth, you can type the age yourself.
 Use this after you meet or support someone.
 
 1. Open the case.
-2. Open `Quick Capture`.
+2. Open `Support Provided`.
 3. Tick any tags that apply.
 4. Add an interaction note.
 5. Add an outcome if there is one.

@@ -33,6 +33,8 @@ def run_migrations():
         _create_access_logs_table,
         _create_erasure_logs_table,
         _encrypt_sensitive_case_fields,
+        _add_outreach_fields_to_cases,
+        _add_kind_to_case_attachments,
     ]
 
     for migration in migrations:
@@ -446,3 +448,33 @@ def _encrypt_sensitive_case_fields():
             f"Applying migration: encrypted sensitive fields on {updated} case(s)"
         )
         db.session.commit()
+
+
+def _add_outreach_fields_to_cases():
+    """Migration: Add ethnicity, project and street address to cases."""
+    columns = {
+        "ethnicity": "VARCHAR(100)",
+        "project": "VARCHAR(20)",
+        "location_address": "TEXT",
+    }
+
+    for column, ddl_type in columns.items():
+        if _column_exists("cases", column):
+            continue
+        logger.info(f"Applying migration: add {column} to cases")
+        db.session.execute(
+            db.text(f"ALTER TABLE cases ADD COLUMN {column} {ddl_type}")
+        )
+        db.session.commit()
+
+
+def _add_kind_to_case_attachments():
+    """Migration: Add kind column to case_attachments."""
+    if _column_exists("case_attachments", "kind"):
+        return
+
+    logger.info("Applying migration: add kind to case_attachments")
+    db.session.execute(
+        db.text("ALTER TABLE case_attachments ADD COLUMN kind VARCHAR(30)")
+    )
+    db.session.commit()

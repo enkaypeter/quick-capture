@@ -3,6 +3,10 @@ from sqlalchemy.sql import func
 from app.extensions import db
 
 
+class AttachmentKind:
+    CONSENT_RISK = "consent_risk"
+
+
 class CaseAttachment(db.Model):
     __tablename__ = "case_attachments"
 
@@ -14,6 +18,9 @@ class CaseAttachment(db.Model):
     stored_path = db.Column(db.String(500), nullable=False)
     content_type = db.Column(db.String(100), nullable=True)
     size_bytes = db.Column(db.Integer, nullable=True)
+    # Set for uploads that belong to a specific section, e.g. the image on
+    # the consent & risk section. Null for ordinary documents.
+    kind = db.Column(db.String(30), nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), default=func.now())
 
     uploader = db.relationship("User", lazy="select")

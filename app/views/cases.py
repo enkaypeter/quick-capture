@@ -4,6 +4,13 @@ from io import StringIO
 from flask import Response, render_template, request, flash, redirect, url_for, jsonify, send_from_directory, current_app
 from flask_login import login_required, current_user
 
+from app.models.case import (
+    ETHNICITY_CHOICES,
+    ConsentStatus,
+    Project,
+    RiskRating,
+)
+from app.models.case_attachment import AttachmentKind
 from app.models.case_interaction import InteractionTagType
 from app.services.access_log_service import AccessAction, AccessLogService
 from app.services.case_service import CaseService
@@ -34,6 +41,17 @@ def _record_access(action, case_id=None, resource=None):
         current_app.logger.exception("Failed to record access log entry")
 
 
+def _case_form_options():
+    """Choice lists shared by the create form and the case detail page."""
+    return {
+        "projects": Project.LABELS,
+        "ethnicities": ETHNICITY_CHOICES,
+        "consent_options": ConsentStatus.LABELS,
+        "risk_options": RiskRating.LABELS,
+        "key_workers": case_service.get_key_worker_choices(),
+    }
+
+
 @cases_bp.route("/")
 def landing():
     """Public landing page."""
@@ -52,15 +70,60 @@ def service_worker():
 @cases_bp.route("/dashboard")
 @login_required
 def list_cases():
-    """Dashboard view - list all active team-visible cases."""
+    """Home screen: search, new case, three summary boxes and the follow-up feed."""
     query = request.args.get("q", "").strip()
+    results = None
     if query:
         # The search term itself is not stored: it is often a person's name,
         # and the access log should not become a second copy of case data.
         _record_access(AccessAction.SEARCHED)
-    cases = case_service.search_cases(query) if query else case_service.get_cases_for_user(current_user.id)
+        results = case_service.search_cases(query)
     follow_ups = case_service.get_upcoming_follow_ups()
-    return render_template("cases/list.html", cases=cases, query=query, follow_ups=follow_ups)
+    return render_template(
+        "cases/list.html",
+        query=query,
+        results=results,
+        active_count=len(case_service.get_cases_for_user(current_user.id)),
+        follow_up_count=len(follow_ups),
+        review_count=len(case_service.get_cases_needing_review()),
+        follow_ups=follow_ups[:5],
+    )
+
+
+@cases_bp.route("/cases")
+@login_required
+def active_cases():
+    """Every active case."""
+    return render_template(
+        "cases/case_list.html",
+        heading="Active cases",
+        blurb="Everyone currently on the team's books.",
+        cases=case_service.get_cases_for_user(current_user.id),
+        empty="No active cases yet.",
+    )
+
+
+@cases_bp.route("/cases/review")
+@login_required
+def review_cases():
+    """Cases holding transcribed notes that still need a human check."""
+    return render_template(
+        "cases/case_list.html",
+        heading="Cases to review",
+        blurb="These cases have a voice-note transcript nobody has checked yet.",
+        cases=case_service.get_cases_needing_review(),
+        empty="Nothing to review right now.",
+    )
+
+
+@cases_bp.route("/follow-ups")
+@login_required
+def follow_up_actions():
+    """All open follow-up actions, soonest first."""
+    return render_template(
+        "cases/follow_ups.html",
+        follow_ups=case_service.get_upcoming_follow_ups(),
+    )
 
 
 @cases_bp.route("/cases/new", methods=["GET", "POST"])
@@ -79,12 +142,24 @@ def create_case():
         gender = request.form.get("gender", "").strip()
         physical_description = request.form.get("physical_description", "").strip()
         other_contact = request.form.get("other_contact", "").strip()
-        consent_status = request.form.get("consent_status", "unknown").strip()
+        consent_status = request.form.get("consent_status", "").strip()
         consent_date = request.form.get("consent_date", "").strip()
-        risk_rating = request.form.get("risk_rating", "unknown").strip()
+        risk_rating = request.form.get("risk_rating", "").strip()
         risk_notes = request.form.get("risk_notes", "").strip()
-        mental_health_notes = request.form.get("mental_health_notes", "").strip()
         current_situation = request.form.get("current_situation", "").strip()
+        ethnicity = request.form.get("ethnicity", "").strip()
+        ni_number = request.form.get("ni_number", "").strip()
+        location_address = request.form.get("location_address", "").strip()
+        project = request.form.get("project", "").strip()
+        key_worker_raw = request.form.get("key_worker_id", "").strip()
+
+        key_worker_id = None
+        if key_worker_raw:
+            try:
+                key_worker_id = int(key_worker_raw)
+            except ValueError:
+                flash("Choose a key worker from the list.", category="error")
+                return render_template("cases/create.html", **_case_form_options())
 
         age = None
         if age_str:
@@ -92,7 +167,7 @@ def create_case():
                 age = int(age_str)
             except ValueError:
                 flash("Age must be a number.", category="error")
-                return render_template("cases/create.html")
+                return render_template("cases/create.html", **_case_form_options())
 
         # Parse location coordinates if provided
         location_lat = None
@@ -129,8 +204,13 @@ def create_case():
             consent_date=consent_date or None,
             risk_rating=risk_rating or None,
             risk_notes=risk_notes or None,
-            mental_health_notes=mental_health_notes or None,
             current_situation=current_situation or None,
+            ethnicity=ethnicity or None,
+            ni_number=ni_number or None,
+            location_address=location_address or None,
+            project=project or None,
+            key_worker_id=key_worker_id,
+            consent_image=request.files.get("consent_image"),
         )
 
         if error:
@@ -139,7 +219,7 @@ def create_case():
             flash("Case created successfully!", category="success")
             return redirect(url_for("cases.view_case", case_id=case.id))
 
-    return render_template("cases/create.html")
+    return render_template("cases/create.html", **_case_form_options())
 
 
 @cases_bp.route("/cases/<int:case_id>")
@@ -159,11 +239,13 @@ def view_case(case_id):
     attachments = case_service.get_attachments_for_case(case_id)
     return render_template(
         "cases/detail.html",
+        **_case_form_options(),
+        consent_images=[a for a in attachments if a.kind == AttachmentKind.CONSENT_RISK],
+        attachments=[a for a in attachments if a.kind != AttachmentKind.CONSENT_RISK],
         case=case,
         notes=notes,
         interactions=interactions,
         follow_ups=follow_ups,
-        attachments=attachments,
         tag_labels=InteractionTagType.LABELS,
     )
 
@@ -195,6 +277,10 @@ def edit_case(case_id):
         risk_notes=data.get("risk_notes"),
         mental_health_notes=data.get("mental_health_notes"),
         current_situation=data.get("current_situation"),
+        ethnicity=data.get("ethnicity"),
+        location_address=data.get("location_address"),
+        project=data.get("project"),
+        key_worker_id=data.get("key_worker_id"),
     )
 
     if error:
@@ -210,12 +296,16 @@ def edit_case(case_id):
         "gender": updated_case.gender or "",
         "physical_description": updated_case.physical_description or "",
         "other_contact": updated_case.other_contact or "",
-        "consent_status": updated_case.consent_status or "unknown",
+        "consent_status": updated_case.consent_status or "",
         "consent_date": updated_case.consent_date or "",
-        "risk_rating": updated_case.risk_rating or "unknown",
+        "risk_rating": updated_case.risk_rating or "",
         "risk_notes": updated_case.risk_notes or "",
         "mental_health_notes": updated_case.mental_health_notes or "",
         "current_situation": updated_case.current_situation or "",
+        "ethnicity": updated_case.ethnicity or "",
+        "location_address": updated_case.location_address or "",
+        "project": updated_case.project or "",
+        "key_worker_id": updated_case.assigned_user_id or "",
     })
 
 
@@ -556,6 +646,24 @@ def add_attachment(case_id):
         file=request.files.get("attachment"),
     )
     flash(error or "Attachment uploaded.", category="error" if error else "success")
+    return redirect(url_for("cases.view_case", case_id=case_id))
+
+
+@cases_bp.route("/cases/<int:case_id>/consent-image", methods=["POST"])
+@login_required
+def add_consent_image(case_id):
+    case = case_service.get_case(case_id)
+    if not case or case.archived_at:
+        flash("Case not found.", category="error")
+        return redirect(url_for("cases.list_cases"))
+
+    _, error = case_service.add_attachment(
+        case_id=case.id,
+        user_id=current_user.id,
+        file=request.files.get("consent_image"),
+        kind=AttachmentKind.CONSENT_RISK,
+    )
+    flash(error or "Image uploaded.", category="error" if error else "success")
     return redirect(url_for("cases.view_case", case_id=case_id))
 
 

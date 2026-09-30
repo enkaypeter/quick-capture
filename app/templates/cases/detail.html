@@ -1,7 +1,6 @@
 {% extends "base.html" %}
 {% block title %}{{ case.full_name or case.identifier }} - Simon on the Streets{% endblock %}
 {% block content %}
-{% set category_labels = {'non-caseload': 'Non-caseload', 'caseload': 'Caseload', 'client': 'Client'} %}
 <div class="mx-auto max-w-3xl">
     <a href="{{ url_for('cases.list_cases') }}" class="inline-flex items-center gap-1 text-sm text-gray-500 hover:text-gray-700 mb-4">
         <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"/></svg>
@@ -11,31 +10,101 @@
     <div class="flex flex-wrap items-start justify-between gap-3 mb-5">
         <div>
             <h1 class="text-2xl font-bold">{{ case.full_name or case.identifier }}</h1>
-            <p class="text-sm text-gray-500 mt-0.5">{{ case.identifier }}</p>
+            <p class="text-sm text-gray-500 mt-0.5">{{ case.identifier }}{% if case.assigned_worker %} &middot; Key worker: {{ case.assigned_worker.first_name }}{% endif %}</p>
         </div>
         <div class="flex flex-wrap gap-2">
-            <span class="rounded-full px-3 py-1 text-xs font-medium
-                {% if case.category == 'client' %}bg-green-100 text-green-700
-                {% elif case.category == 'caseload' %}bg-blue-100 text-blue-700
-                {% else %}bg-gray-100 text-gray-600{% endif %}">
-                {{ category_labels.get(case.category, case.category) }}
+            {% if case.project %}
+            <span class="rounded-full bg-brand-50 px-3 py-1 text-xs font-medium text-brand-700">
+                {{ projects.get(case.project, case.project) }}
             </span>
+            {% endif %}
             <span class="rounded-full px-3 py-1 text-xs font-medium
                 {% if case.risk_rating == 'red' %}bg-red-100 text-red-700
                 {% elif case.risk_rating == 'amber' %}bg-amber-100 text-amber-700
                 {% elif case.risk_rating == 'green' %}bg-green-100 text-green-700
                 {% else %}bg-gray-100 text-gray-600{% endif %}">
-                risk: {{ case.risk_rating }}
+                risk: {{ risk_options.get(case.risk_rating, 'not set')|lower }}
             </span>
             <span class="rounded-full px-3 py-1 text-xs font-medium {% if case.consent_status == 'given' %}bg-green-100 text-green-700{% else %}bg-amber-100 text-amber-700{% endif %}">
-                consent: {{ case.consent_status|replace('_', ' ') }}
+                consent: {{ consent_options.get(case.consent_status, 'not set')|lower }}
             </span>
         </div>
     </div>
 
     <div class="space-y-4">
         <details open class="rounded-lg border border-gray-200 bg-white p-4">
-            <summary class="cursor-pointer text-base font-semibold text-gray-900">Quick Capture</summary>
+            <summary class="cursor-pointer text-base font-semibold text-gray-900">Personal details</summary>
+            <form id="identity-form" class="case-edit-form mt-4 grid gap-4" data-case-id="{{ case.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <label class="text-sm font-medium text-gray-700">Name or known name
+                    <input name="full_name" value="{{ case.full_name or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                </label>
+                <label class="text-sm font-medium text-gray-700">Phone
+                    <input name="phone_number" value="{{ case.phone_number or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                </label>
+                <div class="grid gap-3 sm:grid-cols-3">
+                    <label class="text-sm font-medium text-gray-700">Date of birth
+                        <input name="date_of_birth" type="date" value="{{ case.date_of_birth or '' }}" data-age-target="case-age" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                    </label>
+                    <label class="text-sm font-medium text-gray-700">Age
+                        <input id="case-age" name="age" type="number" value="{{ case.age or '' }}" placeholder="Auto-filled from DOB" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                    </label>
+                    <label class="text-sm font-medium text-gray-700">Gender
+                        <input name="gender" value="{{ case.gender or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                    </label>
+                </div>
+                <label class="text-sm font-medium text-gray-700">Ethnicity
+                    <select name="ethnicity" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="">Not recorded</option>
+                        {% for choice in ethnicities %}
+                        <option value="{{ choice }}" {% if case.ethnicity == choice %}selected{% endif %}>{{ choice }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="text-sm font-medium text-gray-700">Physical description
+                    <textarea name="physical_description" rows="3" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ case.physical_description or '' }}</textarea>
+                </label>
+                <label class="text-sm font-medium text-gray-700">Other contact details
+                    <input name="other_contact" value="{{ case.other_contact or '' }}" placeholder="e.g. email, or a family member's phone number" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                    <span class="mt-1 block text-xs font-normal text-gray-500">For example an email address or a family member's phone number.</span>
+                </label>
+                <label class="text-sm font-medium text-gray-700">National Insurance number
+                    <input name="ni_number" id="ni-number-input" autocomplete="off" value="{{ case.ni_number or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm uppercase" />
+                </label>
+                <div class="text-sm font-medium text-gray-700">Location
+                    {% if case.location_w3w %}<p class="mt-1 text-sm font-normal text-gray-600">/// {{ case.location_w3w }}</p>{% endif %}
+                    <textarea name="location_address" rows="2" placeholder="Address" aria-label="Address" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ case.location_address or '' }}</textarea>
+                </div>
+                <button class="w-fit rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Save personal details</button>
+            </form>
+        </details>
+
+        <details class="rounded-lg border border-gray-200 bg-white p-4">
+            <summary class="cursor-pointer text-base font-semibold text-gray-900">Project &amp; key worker</summary>
+            <form class="case-edit-form mt-4 grid gap-4" data-case-id="{{ case.id }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                <label class="text-sm font-medium text-gray-700">Project
+                    <select name="project" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="">Not set</option>
+                        {% for value, label in projects.items() %}
+                        <option value="{{ value }}" {% if case.project == value %}selected{% endif %}>{{ label }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <label class="text-sm font-medium text-gray-700">Allocated key worker
+                    <select name="key_worker_id" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                        <option value="">Not allocated</option>
+                        {% for worker in key_workers %}
+                        <option value="{{ worker.id }}" {% if case.assigned_user_id == worker.id %}selected{% endif %}>{{ worker.first_name }}</option>
+                        {% endfor %}
+                    </select>
+                </label>
+                <button class="w-fit rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Save project &amp; key worker</button>
+            </form>
+        </details>
+
+        <details open class="rounded-lg border border-gray-200 bg-white p-4">
+            <summary class="cursor-pointer text-base font-semibold text-gray-900">Support Provided</summary>
             <form method="POST" action="{{ url_for('cases.add_interaction', case_id=case.id) }}" enctype="multipart/form-data" class="mt-4 space-y-4">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
                 <fieldset>
@@ -72,6 +141,36 @@
             </form>
         </details>
 
+        <details class="rounded-lg border border-gray-200 bg-white p-4">
+            <summary class="cursor-pointer text-base font-semibold text-gray-900">Follow-ups</summary>
+            <div class="mt-4 space-y-3">
+                {% for task in follow_ups %}
+                <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
+                    <div>
+                        <p class="text-sm font-medium text-gray-900">{{ task.title }}</p>
+                        <p class="text-xs text-gray-500">{{ task.due_date or 'No date' }} · {{ task.status }}</p>
+                    </div>
+                    {% if task.status == 'open' %}
+                    <form method="POST" action="{{ url_for('cases.complete_follow_up', case_id=case.id, task_id=task.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                        <button class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700">Done</button>
+                    </form>
+                    {% endif %}
+                </div>
+                {% endfor %}
+                <form method="POST" action="{{ url_for('cases.add_follow_up', case_id=case.id) }}" class="grid gap-3 sm:grid-cols-[1fr_auto_auto] sm:items-end">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
+                    <label class="text-sm font-medium text-gray-700">Action
+                        <textarea name="title" rows="2" maxlength="200" placeholder="What needs following up?" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm"></textarea>
+                    </label>
+                    <label class="text-sm font-medium text-gray-700">Follow up on
+                        <input name="due_date" type="date" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
+                    </label>
+                    <button class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Add</button>
+                </form>
+            </div>
+        </details>
+
         <details open class="rounded-lg border border-gray-200 bg-white p-4">
             <summary class="cursor-pointer text-base font-semibold text-gray-900">Recent History</summary>
             <div class="mt-4 space-y-3">
@@ -105,62 +204,14 @@
         </details>
 
         <details class="rounded-lg border border-gray-200 bg-white p-4">
-            <summary class="cursor-pointer text-base font-semibold text-gray-900">Identity & Matching</summary>
-            <form id="identity-form" class="case-edit-form mt-4 grid gap-4" data-case-id="{{ case.id }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                <input type="hidden" name="consent_status" value="{{ case.consent_status }}" />
-                <input type="hidden" name="risk_rating" value="{{ case.risk_rating }}" />
-                <label class="text-sm font-medium text-gray-700">Name or known name
-                    <input name="full_name" value="{{ case.full_name or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                </label>
-                <label class="text-sm font-medium text-gray-700">Phone
-                    <input name="phone_number" value="{{ case.phone_number or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                </label>
-                <div class="grid gap-3 sm:grid-cols-3">
-                    <label class="text-sm font-medium text-gray-700">Date of birth
-                        <input name="date_of_birth" type="date" value="{{ case.date_of_birth or '' }}" data-age-target="case-age" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                    </label>
-                    <label class="text-sm font-medium text-gray-700">Age
-                        <input id="case-age" name="age" type="number" value="{{ case.age or '' }}" placeholder="Auto-filled from DOB" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                    </label>
-                    <label class="text-sm font-medium text-gray-700">Gender
-                        <input name="gender" value="{{ case.gender or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                    </label>
-                </div>
-                <label class="text-sm font-medium text-gray-700">Physical description
-                    <textarea name="physical_description" rows="3" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ case.physical_description or '' }}</textarea>
-                </label>
-                <label class="text-sm font-medium text-gray-700">Other contact details
-                    <input name="other_contact" value="{{ case.other_contact or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                </label>
-                <button class="w-fit rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Save identity</button>
-            </form>
-        </details>
-
-        <details class="rounded-lg border border-gray-200 bg-white p-4">
-            <summary class="cursor-pointer text-base font-semibold text-gray-900">Status & Consent</summary>
+            <summary class="cursor-pointer text-base font-semibold text-gray-900">Consent &amp; risk</summary>
             <div class="mt-4 space-y-4">
-                <div>
-                    <label for="category-select" class="block text-sm font-medium text-gray-700 mb-1">Case status</label>
-                    <select id="category-select" class="w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                        <option value="non-caseload" {% if case.category == 'non-caseload' %}selected{% endif %} {% if case.category in ['caseload', 'client'] %}disabled{% endif %}>Non-caseload</option>
-                        <option value="caseload" {% if case.category == 'caseload' %}selected{% endif %} {% if case.category == 'client' %}disabled{% endif %}>Caseload</option>
-                        <option value="client" {% if case.category == 'client' %}selected{% endif %}>Client</option>
-                    </select>
-                    <dl class="mt-2 grid gap-1 text-xs text-gray-500">
-                        <div><dt class="inline font-medium text-gray-600">Non-caseload:</dt> <dd class="inline">not currently on the active caseload.</dd></div>
-                        <div><dt class="inline font-medium text-gray-600">Caseload:</dt> <dd class="inline">actively supported by the team.</dd></div>
-                        <div><dt class="inline font-medium text-gray-600">Client:</dt> <dd class="inline">formal client record with fuller identity details.</dd></div>
-                    </dl>
-                </div>
                 <form class="case-edit-form grid gap-4" data-case-id="{{ case.id }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <label class="text-sm font-medium text-gray-700">National Insurance number
-                        <input name="ni_number" id="ni-number-input" value="{{ case.ni_number or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm uppercase" />
-                    </label>
                     <label class="text-sm font-medium text-gray-700">Consent status
                         <select name="consent_status" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                            {% for value, label in [('unknown', 'Unknown'), ('given', 'Given'), ('declined', 'Declined'), ('not_required', 'Not required yet')] %}
+                            {% if case.consent_status not in consent_options %}<option value="" selected disabled>Not set &ndash; choose one</option>{% endif %}
+                            {% for value, label in consent_options.items() %}
                             <option value="{{ value }}" {% if case.consent_status == value %}selected{% endif %}>{{ label }}</option>
                             {% endfor %}
                         </select>
@@ -168,55 +219,33 @@
                     <label class="text-sm font-medium text-gray-700">Consent date
                         <input name="consent_date" type="date" value="{{ case.consent_date or '' }}" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm" />
                     </label>
-                    <button class="w-fit rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Save consent</button>
+                    <label class="text-sm font-medium text-gray-700">Risk rating
+                        <select name="risk_rating" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
+                            {% if case.risk_rating not in risk_options %}<option value="" selected disabled>Not set &ndash; choose one</option>{% endif %}
+                            {% for value, label in risk_options.items() %}
+                            <option value="{{ value }}" {% if case.risk_rating == value %}selected{% endif %}>{{ label }}</option>
+                            {% endfor %}
+                        </select>
+                    </label>
+                    <label class="text-sm font-medium text-gray-700">Risk notes
+                        <textarea name="risk_notes" rows="3" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ case.risk_notes or '' }}</textarea>
+                    </label>
+                    <button class="w-fit rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Save consent &amp; risk</button>
                 </form>
-            </div>
-        </details>
 
-        <details class="rounded-lg border border-gray-200 bg-white p-4">
-            <summary class="cursor-pointer text-base font-semibold text-gray-900">Risk & Safeguarding</summary>
-            <form class="case-edit-form mt-4 grid gap-4" data-case-id="{{ case.id }}">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                <label class="text-sm font-medium text-gray-700">Risk rating
-                    <select name="risk_rating" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">
-                        {% for value, label in [('unknown', 'Unknown'), ('green', 'Green'), ('amber', 'Amber'), ('red', 'Red')] %}
-                        <option value="{{ value }}" {% if case.risk_rating == value %}selected{% endif %}>{{ label }}</option>
-                        {% endfor %}
-                    </select>
-                </label>
-                <label class="text-sm font-medium text-gray-700">Risk notes
-                    <textarea name="risk_notes" rows="3" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ case.risk_notes or '' }}</textarea>
-                </label>
-                <label class="text-sm font-medium text-gray-700">Mental health notes
-                    <textarea name="mental_health_notes" rows="3" class="mt-1 w-full rounded-lg border border-gray-300 px-3 py-2 text-sm">{{ case.mental_health_notes or '' }}</textarea>
-                </label>
-                <button class="w-fit rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Save risk</button>
-            </form>
-        </details>
-
-        <details class="rounded-lg border border-gray-200 bg-white p-4">
-            <summary class="cursor-pointer text-base font-semibold text-gray-900">Follow-ups</summary>
-            <div class="mt-4 space-y-3">
-                {% for task in follow_ups %}
-                <div class="flex items-center justify-between gap-3 rounded-lg border border-gray-200 p-3">
-                    <div>
-                        <p class="text-sm font-medium text-gray-900">{{ task.title }}</p>
-                        <p class="text-xs text-gray-500">{{ task.due_date or 'No date' }} · {{ task.status }}</p>
-                    </div>
-                    {% if task.status == 'open' %}
-                    <form method="POST" action="{{ url_for('cases.complete_follow_up', case_id=case.id, task_id=task.id) }}">
+                <div class="border-t border-gray-100 pt-4">
+                    <p class="text-sm font-medium text-gray-700 mb-2">Images</p>
+                    {% for image in consent_images %}
+                    <a href="{{ url_for('cases.download_attachment', attachment_id=image.id) }}" class="block text-sm text-brand-600 hover:underline">{{ image.original_filename }}</a>
+                    {% else %}
+                    <p class="text-sm text-gray-500">No images uploaded.</p>
+                    {% endfor %}
+                    <form method="POST" action="{{ url_for('cases.add_consent_image', case_id=case.id) }}" enctype="multipart/form-data" class="mt-3 flex flex-wrap gap-3">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                        <button class="rounded-lg border border-gray-300 px-3 py-1.5 text-xs font-medium text-gray-700">Done</button>
+                        <input name="consent_image" type="file" accept="image/png,image/jpeg" class="text-sm" />
+                        <button class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Upload image</button>
                     </form>
-                    {% endif %}
                 </div>
-                {% endfor %}
-                <form method="POST" action="{{ url_for('cases.add_follow_up', case_id=case.id) }}" class="grid gap-3 sm:grid-cols-[1fr_auto_auto]">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}" />
-                    <input name="title" placeholder="Follow-up action" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                    <input name="due_date" type="date" class="rounded-lg border border-gray-300 px-3 py-2 text-sm" />
-                    <button class="rounded-lg bg-brand-600 px-4 py-2 text-sm font-medium text-white">Add</button>
-                </form>
             </div>
         </details>
 
@@ -364,31 +393,6 @@
                 .catch(function() { alert('Network error.'); });
             });
         });
-
-        var categorySelect = document.getElementById('category-select');
-        var niInput = document.getElementById('ni-number-input');
-        if (categorySelect) {
-            categorySelect.addEventListener('change', function() {
-                var payload = { category: categorySelect.value };
-                if (categorySelect.value === 'client') {
-                    payload.ni_number = niInput ? niInput.value.trim() : '';
-                }
-                fetch('/cases/' + caseId + '/category', {
-                    method: 'POST',
-                    headers: Object.assign({ 'Content-Type': 'application/json' }, csrfHeaders),
-                    body: JSON.stringify(payload)
-                })
-                .then(function(r) { return r.json(); })
-                .then(function(data) {
-                    if (!data.success) {
-                        alert(data.error || 'Failed to update category.');
-                        window.location.reload();
-                        return;
-                    }
-                    window.location.reload();
-                });
-            });
-        }
 
         document.querySelectorAll('.offline-draft').forEach(function(input) {
             var key = input.dataset.draftKey;

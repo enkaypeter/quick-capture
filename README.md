@@ -123,11 +123,12 @@ Generate production secrets with:
 
 ## Usage
 
-- `Home` shows active cases, search, risk status, and upcoming follow-ups.
-- `New Case` creates a prospect record from at least one identifying detail.
-- Case records use `Case status` for the documented SOTS terms: `Non-caseload`, `Caseload`, and `Client`.
+- `Home` shows search, `New Case`, boxes for active cases, follow-up actions and cases to review, and the upcoming follow-ups feed. Each box opens its own page.
+- `New Case` creates a prospect record from at least one identifying detail. Every field is optional beyond that.
+- Case records carry a `Project` (`Core`, `Settled` or `EU`) and an allocated key worker, which defaults to the worker creating the case. The old `Case status` (`Non-caseload`, `Caseload`, `Client`) is no longer shown; the column is kept in the database.
+- Consent status and risk rating offer three options each; `Unknown` has been retired.
 - Entering `Date of birth` automatically fills `Age`; age can still be entered manually if DOB is unknown. When DOB is present, the saved age is recalculated from DOB on create and edit.
-- Case detail pages are one-page records with collapsible sections for quick capture, history, identity, status and consent, risk, follow-ups, documents, reporting fields, legacy notes, and activity.
+- Case detail pages are one-page records with collapsible sections for personal details (first), project and key worker, support provided, follow-ups, history, consent and risk, documents, reporting fields, legacy notes, and activity.
 - `Reports` summarises captured interaction tags and exports CSV.
 - `Security` is where any user manages their own two-factor authentication.
 - `Invite Codes`, `Accounts` and the erasure log are visible to admins for access management.

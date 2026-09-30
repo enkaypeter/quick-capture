@@ -3,6 +3,7 @@ from typing import Optional
 from sqlalchemy import or_
 
 from app.models.case import Case
+from app.models.case_note import CaseNote
 from app.repositories.base import BaseRepository
 
 
@@ -22,6 +23,13 @@ class CaseRepository(BaseRepository[Case]):
             Case.updated_at.desc()
         ).all()
 
+    def get_needing_review(self) -> list[Case]:
+        """Active cases holding at least one transcribed note nobody has checked."""
+        return Case.query.filter(
+            Case.archived_at.is_(None),
+            Case.notes.any(CaseNote.needs_review.is_(True)),
+        ).order_by(Case.updated_at.desc()).all()
+
     def search_active(self, query: str) -> list[Case]:
         term = f"%{query.strip()}%"
         if not query.strip():
@@ -36,6 +44,8 @@ class CaseRepository(BaseRepository[Case]):
                 Case.location_w3w.ilike(term),
                 Case.date_of_birth.ilike(term),
                 Case.gender.ilike(term),
+                Case.ethnicity.ilike(term),
+                Case.location_address.ilike(term),
                 Case.physical_description.ilike(term),
                 Case.other_contact.ilike(term),
                 Case.current_situation.ilike(term),

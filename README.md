@@ -1,3 +1,5 @@
+![Tests](https://github.com/enkaypeter/quick-capture/actions/workflows/tests.yml/badge.svg?branch=main)
+
 > ## ⚠️ Not ready for live data
 >
 > Four things must happen before real case data is entered, and **none of them

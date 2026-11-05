@@ -23,6 +23,12 @@ class CaseRepository(BaseRepository[Case]):
             Case.updated_at.desc()
         ).all()
 
+    def get_active_assigned_to(self, user_id: int) -> list[Case]:
+        return Case.query.filter(
+            Case.archived_at.is_(None),
+            Case.assigned_user_id == user_id,
+        ).order_by(Case.updated_at.desc()).all()
+
     def get_needing_review(self) -> list[Case]:
         """Active cases holding at least one transcribed note nobody has checked."""
         return Case.query.filter(

@@ -84,6 +84,7 @@ def list_cases():
         query=query,
         results=results,
         active_count=len(case_service.get_cases_for_user(current_user.id)),
+        my_cases=case_service.get_my_cases(current_user.id),
         follow_up_count=len(follow_ups),
         review_count=len(case_service.get_cases_needing_review()),
         follow_ups=follow_ups[:5],

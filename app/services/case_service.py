@@ -205,6 +205,9 @@ class CaseService:
     def get_cases_for_user(self, user_id: int) -> list[Case]:
         return self.case_repo.get_active()
 
+     def get_my_cases(self, user_id: int) -> list[Case]:
+        return self.case_repo.get_active_assigned_to(user_id)
+
     def search_cases(self, query: str) -> list[Case]:
         return self.case_repo.search_active(query)
 
